@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build output
+dist/
+build/
+out/
+*.log
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.key
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Python (if used)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
