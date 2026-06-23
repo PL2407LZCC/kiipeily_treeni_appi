@@ -17,9 +17,9 @@ toissijaisena ominaisuutena.
 
 ## Tila
 
-**Suunnitteluvaihe** — toteutusta ei ole vielä aloitettu. Vaatimukset ja tekninen
-suunnitelma on lyöty lukkoon; katso **[PLAN.md](PLAN.md)** koko suunnitelma (tietomalli,
-näkymät, toteutusvaiheet ja verifiointi).
+**MVP toteutettu** — sovellus on rakennettu suunnitelman mukaan ja kääntyy/bundlaantuu.
+Katso **[PLAN.md](PLAN.md)** koko suunnitelma (tietomalli, näkymät, toteutusvaiheet ja
+verifiointi) ja **[CLAUDE.md](CLAUDE.md)** tekninen stack + projektin rakenne.
 
 ### Keskeiset päätökset
 
@@ -41,5 +41,14 @@ näkymät, toteutusvaiheet ja verifiointi).
 
 ## Kehitys
 
-Tekninen stack ja ajokomennot tarkennetaan, kun projekti on skaffattu (ks. PLAN.md,
-toteutusvaihe 1). Suunniteltu ajo: `npx expo start` ja avaus Expo Go ‑sovelluksella.
+Stack: **Expo (managed) + TypeScript**, expo-router, expo-sqlite + drizzle-orm, zustand.
+
+```sh
+npm install            # asenna riippuvuudet
+npx expo start         # käynnistä, avaa Expo Go -sovelluksella tai simulaattorissa
+npm test               # yksikkötestit (asteikot + tilastot)
+npm run typecheck      # tsc --noEmit
+```
+
+> Huom: jos `npm`/`npx` valittaa puuttuvasta `package.json`:sta, käytä etuliitettä
+> `npm_config_workspaces=false` (globaali `~/.npmrc` asettaa `workspaces=true`).
