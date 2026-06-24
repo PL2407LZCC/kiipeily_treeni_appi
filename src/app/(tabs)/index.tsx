@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GradePicker } from '@/components/GradePicker';
 import { HoldTypePrompt } from '@/components/HoldTypePrompt';
 import { NewProjectModal } from '@/components/NewProjectModal';
+import { PlanBuilderModal } from '@/components/PlanBuilderModal';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { Stepper } from '@/components/Stepper';
@@ -21,8 +22,8 @@ import { SupplementalModal } from '@/components/SupplementalModal';
 import { ThemePicker } from '@/components/ThemePicker';
 import { Spacing } from '@/constants/theme';
 import { AttemptLogs, Attempts, Projects, Sends, Sessions, Themes } from '@/db/repositories';
-import { formatDateFi, formatTimeFi } from '@/domain/dates';
-import type { Discipline, HoldType, SessionEnvironment } from '@/domain/types';
+import { daysAgoIso, formatDateFi, formatTimeFi } from '@/domain/dates';
+import type { Discipline, HoldType, SessionEnvironment, SessionPlan } from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
 import { fi, holdTypeLabel } from '@/i18n/fi';
@@ -39,12 +40,18 @@ export default function HomeScreen() {
   const [startLocation, setStartLocation] = useState('');
   const [startTheme, setStartTheme] = useState<string | null>(null);
   const [startEnvironment, setStartEnvironment] = useState<SessionEnvironment | 'none'>('none');
+  const [draftPlan, setDraftPlan] = useState<SessionPlan | null>(null);
+  const [planModal, setPlanModal] = useState(false);
   const [projectModal, setProjectModal] = useState(false);
   const [supplementalModal, setSupplementalModal] = useState(false);
 
   const session = useDbQuery(() => Sessions.getActiveSession(), []);
   const sessionId = session?.id ?? null;
   const themes = useDbQuery(() => Themes.listThemes(), []);
+  const activePlan = useDbQuery(
+    () => (sessionId != null ? Sessions.getSessionPlan(sessionId) : null),
+    [sessionId],
+  );
 
   // Alusta boulderoinnin näyttöasteikko asetusten oletuksesta.
   useEffect(() => {
@@ -52,15 +59,21 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.loaded]);
 
+  // Plan-osio näkyy vasta kun teema + ympäristö on valittu; pohjasessiot viim. 4 vk.
+  const planReady = startTheme != null && startEnvironment !== 'none';
+  const PLAN_BASELINE_DAYS = 28;
+
   const startSession = () => {
-    Sessions.startSession({
+    const id = Sessions.startSession({
       location: startLocation,
       theme: startTheme,
       environment: startEnvironment === 'none' ? null : startEnvironment,
     });
+    if (draftPlan) Sessions.setSessionPlan(id, draftPlan);
     setStartLocation('');
     setStartTheme(null);
     setStartEnvironment('none');
+    setDraftPlan(null);
     bumpData();
   };
 
@@ -104,7 +117,10 @@ export default function HomeScreen() {
             options={themes.map((t) => t.name)}
             placeholder={fi.home.themePlaceholder}
             noneLabel={fi.home.noTheme}
-            onChange={setStartTheme}
+            onChange={(v) => {
+              setStartTheme(v);
+              setDraftPlan(null); // valinnan muuttuessa pohjasessio ei enää päde
+            }}
           />
 
           <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
@@ -117,11 +133,70 @@ export default function HomeScreen() {
               { value: 'none', label: fi.common.none },
             ]}
             value={startEnvironment}
-            onChange={setStartEnvironment}
+            onChange={(v) => {
+              setStartEnvironment(v);
+              setDraftPlan(null);
+            }}
           />
+
+          {planReady ? (
+            <>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                {fi.plan.sectionLabel}
+              </Text>
+              {draftPlan ? (
+                <View style={[styles.planCard, { backgroundColor: theme.backgroundElement }]}>
+                  <Text style={[styles.planCardTitle, { color: theme.text }]}>{draftPlan.label}</Text>
+                  <View style={styles.planTargets}>
+                    {draftPlan.targets.map((t) => (
+                      <View
+                        key={`${t.gradeSystem}:${t.gradeValue}`}
+                        style={[styles.planChip, { backgroundColor: theme.background }]}>
+                        <Text style={[styles.planChipText, { color: theme.text }]}>
+                          {t.target}× {t.gradeValue}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.planActions}>
+                    <PrimaryButton
+                      label={fi.plan.edit}
+                      onPress={() => setPlanModal(true)}
+                      variant="secondary"
+                      flex
+                    />
+                    <PrimaryButton
+                      label={fi.plan.remove}
+                      onPress={() => setDraftPlan(null)}
+                      variant="secondary"
+                      flex
+                    />
+                  </View>
+                </View>
+              ) : (
+                <PrimaryButton
+                  label={fi.plan.build}
+                  onPress={() => setPlanModal(true)}
+                  variant="secondary"
+                />
+              )}
+            </>
+          ) : null}
 
           <PrimaryButton label={fi.home.startSession} onPress={startSession} />
         </ScrollView>
+
+        <PlanBuilderModal
+          visible={planModal}
+          theme={startTheme}
+          environment={startEnvironment === 'none' ? null : startEnvironment}
+          sinceDate={daysAgoIso(PLAN_BASELINE_DAYS)}
+          onClose={() => setPlanModal(false)}
+          onUse={(plan) => {
+            setDraftPlan(plan);
+            setPlanModal(false);
+          }}
+        />
       </SafeAreaView>
     );
   }
@@ -142,6 +217,27 @@ export default function HomeScreen() {
             <Text style={[styles.endBtnText, { color: theme.text }]}>{fi.home.endSession}</Text>
           </Pressable>
         </View>
+
+        {/* Treenisuunnitelma (read-only) — vain jos sessiolle on tallennettu suunnitelma */}
+        {activePlan && activePlan.targets.length > 0 ? (
+          <View style={[styles.planCard, { backgroundColor: theme.backgroundElement }]}>
+            <Text style={[styles.planCardTitle, { color: theme.text }]}>
+              {fi.plan.activeTitle}
+            </Text>
+            <Text style={[styles.muted, { color: theme.textSecondary }]}>{activePlan.label}</Text>
+            <View style={styles.planTargets}>
+              {activePlan.targets.map((t) => (
+                <View
+                  key={`${t.gradeSystem}:${t.gradeValue}`}
+                  style={[styles.planChip, { backgroundColor: theme.background }]}>
+                  <Text style={[styles.planChipText, { color: theme.text }]}>
+                    {t.target}× {t.gradeValue}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         {/* Laji + tila */}
         <SegmentedControl<Discipline>
@@ -555,6 +651,12 @@ const styles = StyleSheet.create({
   input: { borderRadius: 10, padding: Spacing.three, fontSize: 16 },
   fieldLabel: { fontSize: 13, fontWeight: '600', marginTop: Spacing.two },
   sessionHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  planCard: { borderRadius: 12, padding: Spacing.three, gap: Spacing.two },
+  planCardTitle: { fontSize: 15, fontWeight: '700' },
+  planTargets: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  planChip: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.one, borderRadius: 10 },
+  planChipText: { fontSize: 14, fontWeight: '700' },
+  planActions: { flexDirection: 'row', gap: Spacing.two },
   endBtn: { borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   endBtnText: { fontSize: 14, fontWeight: '700' },
   section: { gap: Spacing.three },

@@ -1,9 +1,13 @@
-import { desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull } from 'drizzle-orm';
 
+import { buildEfforts, type ClimbEffort } from '@/domain/aggregate';
 import { nowIso, todayIso } from '@/domain/dates';
-import type { SessionEnvironment } from '@/domain/types';
+import type { SessionEnvironment, SessionPlan } from '@/domain/types';
 import { db } from '../client';
 import { sessions } from '../schema';
+import { listAttemptLogsForSession } from './attemptLogs';
+import { attemptsForSession } from './attempts';
+import { listSendsForSession } from './sends';
 
 export interface NewSession {
   location?: string | null;
@@ -64,4 +68,89 @@ export function updateSession(
 
 export function deleteSession(id: number): void {
   db.delete(sessions).where(eq(sessions.id, id)).run();
+}
+
+/* ------------------------------ guided plan ------------------------------- */
+
+/** Lue session suunnitelma (JSON.parse), tai null jos ei suunnitelmaa / virheellinen. */
+export function getSessionPlan(id: number): SessionPlan | null {
+  const row = db.select({ plan: sessions.plan }).from(sessions).where(eq(sessions.id, id)).get();
+  if (!row?.plan) return null;
+  try {
+    return JSON.parse(row.plan) as SessionPlan;
+  } catch {
+    return null;
+  }
+}
+
+/** Tallenna session suunnitelma (JSON.stringify sessions.plan-sarakkeeseen). */
+export function setSessionPlan(id: number, plan: SessionPlan): void {
+  db.update(sessions).set({ plan: JSON.stringify(plan) }).where(eq(sessions.id, id)).run();
+}
+
+/**
+ * Laske session efforts-lista (sendit + irralliset yritykset + projektiyritykset)
+ * suunnitelman lähtötasoa varten. Käyttää session omaa päivää kaikille riveille.
+ */
+export function sessionEfforts(id: number): ClimbEffort[] {
+  const session = getSession(id);
+  if (!session) return [];
+  const dateBySession = new Map<number, string>([[id, session.date]]);
+  const sends = listSendsForSession(id);
+  const attemptLogs = listAttemptLogsForSession(id);
+  const projectAttempts = attemptsForSession(id);
+  return buildEfforts(
+    {
+      sends: sends.map((s) => ({
+        sessionId: id,
+        discipline: s.discipline,
+        gradeSystem: s.gradeSystem,
+        gradeValue: s.gradeValue,
+        count: s.count,
+      })),
+      attemptLogs: attemptLogs.map((a) => ({
+        sessionId: id,
+        discipline: a.discipline,
+        gradeSystem: a.gradeSystem,
+        gradeValue: a.gradeValue,
+        count: a.count,
+      })),
+      projectAttempts: projectAttempts.map((p) => ({
+        sessionId: id,
+        discipline: p.discipline,
+        gradeSystem: p.gradeSystem,
+        gradeValue: p.gradeValue,
+        attemptCount: p.attemptCount,
+      })),
+    },
+    dateBySession,
+  );
+}
+
+export interface SessionFilter {
+  theme: string | null;
+  environment: SessionEnvironment | null;
+  /** Inklusiivinen alaraja (ISO-päivä YYYY-MM-DD): vain tätä uudemmat/yhtä uudet. */
+  sinceDate: string;
+}
+
+/**
+ * Menneet sessiot annetulla teemalla + ympäristöllä, päivästä `sinceDate` eteenpäin,
+ * uusin ensin. Käytetään suunnitelman lähtötason valintaan.
+ */
+export function listSessionsFor(filter: SessionFilter) {
+  return db
+    .select()
+    .from(sessions)
+    .where(
+      and(
+        filter.theme == null ? isNull(sessions.theme) : eq(sessions.theme, filter.theme),
+        filter.environment == null
+          ? isNull(sessions.environment)
+          : eq(sessions.environment, filter.environment),
+        gte(sessions.date, filter.sinceDate),
+      ),
+    )
+    .orderBy(desc(sessions.date), desc(sessions.startedAt))
+    .all();
 }

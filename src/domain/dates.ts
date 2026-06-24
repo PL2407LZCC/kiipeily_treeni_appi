@@ -14,6 +14,16 @@ export function todayIso(): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Paikallinen ISO-päivä N päivää sitten (YYYY-MM-DD). */
+export function daysAgoIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** Muotoile ISO-päivä suomalaiseen muotoon, esim. "23.6.2026". */
 export function formatDateFi(isoDate: string): string {
   const [y, m, d] = isoDate.split('-');

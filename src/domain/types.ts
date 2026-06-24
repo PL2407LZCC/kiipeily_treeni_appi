@@ -105,3 +105,27 @@ export interface Climb {
   gradeValue: string;
   count: number;
 }
+
+/**
+ * Yksi suunnitelman tavoite: kuinka monta efforttia tietyllä asteella tavoitellaan.
+ * Asteavain pidetään LOGATUSSA järjestelmässä (gradeSystem) — likimääräistä
+ * Font↔V-muunnosta ei käytetä kanonisena avaimena.
+ */
+export interface PlanTarget {
+  gradeSystem: GradeSystem;
+  gradeValue: string;
+  target: number;
+}
+
+/**
+ * Guided-session-suunnitelma: johdettu menneestä sessiosta + modifikaattoreista,
+ * tallennetaan JSON-merkkijonona sessions.plan-sarakkeeseen. PR4: vain suunnitelma
+ * ja sen näyttö (read-only) — ei enforcementtia eikä tallennettuja templaatteja.
+ */
+export interface SessionPlan {
+  discipline: Discipline;
+  label: string;
+  sourceSessionId: number | null;
+  modifier: { volumePct?: number; gradeShift?: number };
+  targets: PlanTarget[];
+}
