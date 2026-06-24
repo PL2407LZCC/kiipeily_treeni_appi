@@ -4,7 +4,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Spacing } from '@/constants/theme';
-import { Attempts, Sends, Sessions, Supplemental } from '@/db/repositories';
+import { AttemptLogs, Attempts, Sends, Sessions, Supplemental } from '@/db/repositories';
 import { formatDateFi, formatTimeFi } from '@/domain/dates';
 import type { Discipline, SupplementalKind } from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
@@ -20,11 +20,16 @@ export default function SessionDetailScreen() {
 
   const session = useDbQuery(() => Sessions.getSession(id), [id]);
   const sends = useDbQuery(() => Sends.listSendsForSession(id), [id]);
+  const looseAttempts = useDbQuery(() => AttemptLogs.listAttemptLogsForSession(id), [id]);
   const attempts = useDbQuery(() => Attempts.attemptsForSession(id), [id]);
   const supplemental = useDbQuery(() => Supplemental.listSupplementalForSession(id), [id]);
 
   const deleteSend = (sendId: number) => {
     Sends.deleteSend(sendId);
+    bumpData();
+  };
+  const deleteLooseAttempt = (attemptId: number) => {
+    AttemptLogs.deleteAttemptLog(attemptId);
     bumpData();
   };
   const deleteAttempt = (attemptId: number) => {
@@ -84,6 +89,25 @@ export default function SessionDetailScreen() {
               title={`${s.count > 1 ? `${s.count}× ` : ''}${s.gradeValue}${s.flash ? ' ⚡' : ''}`}
               subtitle={fi.discipline[s.discipline as Discipline]}
               onDelete={() => deleteSend(s.id)}
+            />
+          ))
+        )}
+
+        {/* Irralliset yritykset */}
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+          {fi.sessionDetail.attempts}
+        </Text>
+        {looseAttempts.length === 0 ? (
+          <Text style={[styles.muted, { color: theme.textSecondary }]}>
+            {fi.sessionDetail.noAttempts}
+          </Text>
+        ) : (
+          looseAttempts.map((a) => (
+            <Row
+              key={`loose-${a.id}`}
+              title={`${a.count > 1 ? `${a.count}× ` : ''}${a.gradeValue}`}
+              subtitle={fi.discipline[a.discipline as Discipline]}
+              onDelete={() => deleteLooseAttempt(a.id)}
             />
           ))
         )}

@@ -9,6 +9,7 @@ import * as Sharing from 'expo-sharing';
 import { db, sqlite } from '@/db/client';
 import {
   appSettings,
+  attemptLogs,
   projectAttempts,
   projects,
   sendLogs,
@@ -17,7 +18,9 @@ import {
 } from '@/db/schema';
 
 export const BACKUP_APP_ID = 'kiipeily-treeni-appi';
-export const BACKUP_VERSION = 1;
+// v2: lisätty attempt_logs (irralliset yritykset). Vanhat v1-tiedostot tuodaan
+// edelleen — puuttuva attemptLogs-avain käsitellään tyhjänä.
+export const BACKUP_VERSION = 2;
 
 interface BackupFile {
   app: string;
@@ -26,6 +29,7 @@ interface BackupFile {
   data: {
     sessions: unknown[];
     sendLogs: unknown[];
+    attemptLogs?: unknown[];
     projects: unknown[];
     projectAttempts: unknown[];
     supplementalEntries: unknown[];
@@ -37,6 +41,7 @@ function collectData(): BackupFile['data'] {
   return {
     sessions: db.select().from(sessions).all(),
     sendLogs: db.select().from(sendLogs).all(),
+    attemptLogs: db.select().from(attemptLogs).all(),
     projects: db.select().from(projects).all(),
     projectAttempts: db.select().from(projectAttempts).all(),
     supplementalEntries: db.select().from(supplementalEntries).all(),
@@ -96,6 +101,7 @@ export function restoreBackup(backup: BackupFile): void {
   sqlite.withTransactionSync(() => {
     // Tyhjennä lapsista vanhempiin (FK-turvallisesti).
     db.delete(projectAttempts).run();
+    db.delete(attemptLogs).run();
     db.delete(sendLogs).run();
     db.delete(supplementalEntries).run();
     db.delete(projects).run();
@@ -104,6 +110,7 @@ export function restoreBackup(backup: BackupFile): void {
     if (d.sessions.length) db.insert(sessions).values(d.sessions as any).run();
     if (d.projects.length) db.insert(projects).values(d.projects as any).run();
     if (d.sendLogs.length) db.insert(sendLogs).values(d.sendLogs as any).run();
+    if (d.attemptLogs?.length) db.insert(attemptLogs).values(d.attemptLogs as any).run();
     if (d.projectAttempts.length)
       db.insert(projectAttempts).values(d.projectAttempts as any).run();
     if (d.supplementalEntries.length)

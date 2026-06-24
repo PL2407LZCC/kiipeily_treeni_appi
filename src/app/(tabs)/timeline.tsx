@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SessionCard } from '@/components/SessionCard';
 import { Spacing } from '@/constants/theme';
-import { Attempts, Sends, Sessions, Supplemental } from '@/db/repositories';
+import { AttemptLogs, Attempts, Sends, Sessions, Supplemental } from '@/db/repositories';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
 import { fi } from '@/i18n/fi';
@@ -17,7 +17,10 @@ export default function TimelineScreen() {
     return Sessions.listSessions().map((session) => {
       const sendCount = Sends.listSendsForSession(session.id).reduce((sum, s) => sum + s.count, 0);
       const attempts = Attempts.attemptsForSession(session.id);
-      const attemptCount = attempts.reduce((sum, a) => sum + a.attemptCount, 0);
+      const looseAttempts = AttemptLogs.listAttemptLogsForSession(session.id);
+      const attemptCount =
+        attempts.reduce((sum, a) => sum + a.attemptCount, 0) +
+        looseAttempts.reduce((sum, a) => sum + a.count, 0);
       const supplementalCount = Supplemental.listSupplementalForSession(session.id).length;
       return { session, sendCount, attemptCount, supplementalCount };
     });

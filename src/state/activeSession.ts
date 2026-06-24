@@ -19,6 +19,8 @@ interface ActiveSessionState {
   selectedProjectId: number | null;
   /** Viimeisimmän sendin id kumoamista varten. */
   lastSendId: number | null;
+  /** Viimeisimmän irrallisen yrityksen id kumoamista varten. */
+  lastAttemptId: number | null;
 
   setMode: (mode: LogMode) => void;
   setDiscipline: (d: Discipline) => void;
@@ -27,6 +29,7 @@ interface ActiveSessionState {
   toggleFlash: () => void;
   setSelectedProject: (id: number | null) => void;
   setLastSendId: (id: number | null) => void;
+  setLastAttemptId: (id: number | null) => void;
   resetLogging: () => void;
 }
 
@@ -38,6 +41,7 @@ export const useActiveSession = create<ActiveSessionState>((set) => ({
   flash: false,
   selectedProjectId: null,
   lastSendId: null,
+  lastAttemptId: null,
 
   setMode: (mode) => set({ mode }),
   setDiscipline: (discipline) => set({ discipline }),
@@ -46,5 +50,6 @@ export const useActiveSession = create<ActiveSessionState>((set) => ({
   toggleFlash: () => set((s) => ({ flash: !s.flash })),
   setSelectedProject: (selectedProjectId) => set({ selectedProjectId }),
   setLastSendId: (lastSendId) => set({ lastSendId }),
-  resetLogging: () => set({ quantity: 1, flash: false, lastSendId: null }),
+  setLastAttemptId: (lastAttemptId) => set({ lastAttemptId }),
+  resetLogging: () => set({ quantity: 1, flash: false, lastSendId: null, lastAttemptId: null }),
 }));

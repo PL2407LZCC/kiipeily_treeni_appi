@@ -32,6 +32,18 @@ export interface SendLog {
   createdAt: string;
 }
 
+/** Irrallinen yritys (ei sidottu projektiin) — astenapin pitkä painallus Send-tilassa. */
+export interface AttemptLog {
+  id: number;
+  sessionId: number;
+  discipline: Discipline;
+  gradeSystem: GradeSystem;
+  gradeValue: string;
+  count: number;
+  notes: string | null;
+  createdAt: string;
+}
+
 export interface Project {
   id: number;
   name: string | null;

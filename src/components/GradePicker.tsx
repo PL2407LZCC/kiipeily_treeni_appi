@@ -11,6 +11,10 @@ interface GradePickerProps {
   secondarySystem?: GradeSystem;
   showSecondary?: boolean;
   onPick: (value: string) => void;
+  /** Pitkä painallus astenapilla (esim. irrallisen yrityksen kirjaus). */
+  onLongPress?: (value: string) => void;
+  /** Pitkän painalluksen viive millisekunteina. */
+  longPressDelayMs?: number;
   /** Korostettu valittu arvo (esim. projektin luonnissa). */
   selected?: string | null;
 }
@@ -21,6 +25,8 @@ export function GradePicker({
   secondarySystem,
   showSecondary,
   onPick,
+  onLongPress,
+  longPressDelayMs,
   selected,
 }: GradePickerProps) {
   const theme = useTheme();
@@ -36,6 +42,8 @@ export function GradePicker({
           <Pressable
             key={g}
             onPress={() => onPick(g)}
+            onLongPress={onLongPress ? () => onLongPress(g) : undefined}
+            delayLongPress={longPressDelayMs}
             style={[
               styles.cell,
               { backgroundColor: isSel ? theme.text : theme.backgroundElement },

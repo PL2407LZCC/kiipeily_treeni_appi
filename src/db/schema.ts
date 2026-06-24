@@ -42,6 +42,28 @@ export const sendLogs = sqliteTable(
   (t) => [index('idx_send_logs_session').on(t.sessionId)],
 );
 
+/**
+ * Irralliset yritykset: epäonnistuneet (tai vielä lähettämättömät) yritykset
+ * johonkin asteeseen ILMAN projektia. Kirjataan astenapin pitkällä painalluksella,
+ * kun "vain kiipeillään" eikä projektoida tiettyä nousua. Rinnakkainen send_logsille.
+ */
+export const attemptLogs = sqliteTable(
+  'attempt_logs',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    sessionId: integer('session_id')
+      .notNull()
+      .references(() => sessions.id, { onDelete: 'cascade' }),
+    discipline: text('discipline').$type<Discipline>().notNull(), // boulder | sport
+    gradeSystem: text('grade_system').$type<GradeSystem>().notNull(), // font | v | french
+    gradeValue: text('grade_value').notNull(),
+    count: integer('count').notNull().default(1),
+    notes: text('notes'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [index('idx_attempt_logs_session').on(t.sessionId)],
+);
+
 export const projects = sqliteTable('projects', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name'),
@@ -125,6 +147,17 @@ export const CREATE_TABLES_SQL = `
     created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_send_logs_session ON send_logs(session_id);
+  CREATE TABLE IF NOT EXISTS attempt_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    discipline TEXT NOT NULL,
+    grade_system TEXT NOT NULL,
+    grade_value TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 1,
+    notes TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_attempt_logs_session ON attempt_logs(session_id);
   CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,

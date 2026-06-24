@@ -18,7 +18,7 @@ import { SegmentedControl } from '@/components/SegmentedControl';
 import { Stepper } from '@/components/Stepper';
 import { SupplementalModal } from '@/components/SupplementalModal';
 import { Spacing } from '@/constants/theme';
-import { Attempts, Projects, Sends, Sessions } from '@/db/repositories';
+import { AttemptLogs, Attempts, Projects, Sends, Sessions } from '@/db/repositories';
 import { formatDateFi, formatTimeFi } from '@/domain/dates';
 import type { Discipline } from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
@@ -161,6 +161,12 @@ export default function HomeScreen() {
 
 /* ----------------------------- Send-tila ----------------------------- */
 
+/**
+ * Pitkän painalluksen viive astenapille (irrallisen yrityksen kirjaus).
+ * Tahallisen tuntuinen mutta ei turhan kankea; säädä tästä yhdestä paikasta.
+ */
+const ATTEMPT_LONG_PRESS_MS = 800;
+
 function SendMode({ sessionId }: { sessionId: number }) {
   const theme = useTheme();
   const active = useActiveSession();
@@ -175,6 +181,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
       : undefined;
 
   const sends = useDbQuery(() => Sends.listSendsForSession(sessionId), [sessionId]);
+  const attempts = useDbQuery(() => AttemptLogs.listAttemptLogsForSession(sessionId), [sessionId]);
 
   const logSend = (grade: string) => {
     const id = Sends.addSend({
@@ -192,6 +199,20 @@ function SendMode({ sessionId }: { sessionId: number }) {
     bumpData();
   };
 
+  const logAttempt = (grade: string) => {
+    const id = AttemptLogs.addAttemptLog({
+      sessionId,
+      discipline: active.discipline,
+      gradeSystem: system,
+      gradeValue: grade,
+      count: active.quantity,
+    });
+    active.setLastAttemptId(id);
+    active.setQuantity(1);
+    successFeedback(); // erottuva palaute: pitkä painallus rekisteröityi yritykseksi
+    bumpData();
+  };
+
   const undo = () => {
     if (active.lastSendId == null) return;
     Sends.deleteSend(active.lastSendId);
@@ -199,9 +220,22 @@ function SendMode({ sessionId }: { sessionId: number }) {
     bumpData();
   };
 
+  const undoAttempt = () => {
+    if (active.lastAttemptId == null) return;
+    AttemptLogs.deleteAttemptLog(active.lastAttemptId);
+    active.setLastAttemptId(null);
+    bumpData();
+  };
+
   const remove = (id: number) => {
     Sends.deleteSend(id);
     if (active.lastSendId === id) active.setLastSendId(null);
+    bumpData();
+  };
+
+  const removeAttempt = (id: number) => {
+    AttemptLogs.deleteAttemptLog(id);
+    if (active.lastAttemptId === id) active.setLastAttemptId(null);
     bumpData();
   };
 
@@ -243,6 +277,8 @@ function SendMode({ sessionId }: { sessionId: number }) {
         secondarySystem={secondarySystem}
         showSecondary={settings.showSecondaryGrade}
         onPick={logSend}
+        onLongPress={logAttempt}
+        longPressDelayMs={ATTEMPT_LONG_PRESS_MS}
       />
 
       <View style={styles.listHeaderRow}>
@@ -274,6 +310,39 @@ function SendMode({ sessionId }: { sessionId: number }) {
           </View>
         ))
       )}
+
+      {attempts.length > 0 ? (
+        <>
+          <View style={styles.listHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              {fi.home.loggedAttempts}
+            </Text>
+            {active.lastAttemptId != null ? (
+              <Pressable onPress={undoAttempt} style={styles.undoBtn}>
+                <Ionicons name="arrow-undo" size={16} color={theme.text} />
+                <Text style={[styles.undoText, { color: theme.text }]}>{fi.home.undoLast}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {attempts.map((a) => (
+            <View
+              key={a.id}
+              style={[styles.entryRow, { backgroundColor: theme.backgroundElement }]}>
+              <Ionicons name="ellipse-outline" size={14} color={theme.textSecondary} />
+              <Text style={[styles.entryGrade, { color: theme.text }]}>
+                {a.count > 1 ? `${a.count}× ` : ''}
+                {a.gradeValue}
+              </Text>
+              <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
+                {fi.discipline[a.discipline as Discipline]}
+              </Text>
+              <Pressable onPress={() => removeAttempt(a.id)} hitSlop={8} style={styles.trash}>
+                <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
+              </Pressable>
+            </View>
+          ))}
+        </>
+      ) : null}
     </View>
   );
 }

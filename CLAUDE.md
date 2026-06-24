@@ -9,6 +9,12 @@ and tracking climbing training (boulder + French sport). Its differentiator is h
 **repeated climbs and attempt counts** properly: log sends with repeats, or switch into
 **projecting mode** and accumulate attempts on a project across sessions until it's sent.
 
+In **Send mode**, a **short tap** on a grade logs a send; a **long-press** (~800 ms,
+`ATTEMPT_LONG_PRESS_MS` in `src/app/(tabs)/index.tsx`) logs a **loose attempt** at that grade
+— a failed/unsent try that isn't tied to a project (e.g. the first two goes before sending on
+the third). These live in the `attempt_logs` table (separate from `project_attempts`) and are
+**excluded from stats** (pyramid/volume count sends + sent projects only).
+
 UI text is **Finnish**; climbing jargon stays **English** (send, project, projecting, flash,
 redpoint, beta). See `PLAN.md` for the full product/data-model spec.
 
@@ -36,7 +42,7 @@ src/
     _layout.tsx         root Stack + DB init + settings load
     (tabs)/             index (Treeni), timeline, projects, stats, settings
     session/[id].tsx    session detail
-  db/        client.ts, schema.ts, repositories/ (sessions, sends, projects, attempts, supplemental, settings)
+  db/        client.ts, schema.ts, repositories/ (sessions, sends, attemptLogs, projects, attempts, supplemental, settings)
   domain/    grades.ts (scales + Font↔V conversion), stats.ts (pyramid/volume), types.ts, dates.ts
   state/     activeSession.ts, settings.ts, dataVersion.ts
   components/ GradePicker, Stepper, SegmentedControl, ProjectCard, SessionCard, BarChart, modals, ...
