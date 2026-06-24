@@ -57,6 +57,11 @@ src/
 - **Unit tests:** `npm test` (Jest; covers `src/domain/grades.ts` and `stats.ts`).
 - **Bundle check (no device):** `npx expo export --platform android --output-dir dist-check`.
 - **Lint:** `npm run lint` (`expo lint`).
+- **Android APK:** see **[BUILD.md](BUILD.md)**. Short version: native `android/` is generated
+  (gitignored) via `expo prebuild`; the build needs a **JDK 17 toolchain** (`JAVA_HOME` →
+  JDK 17, or set `org.gradle.java.installations.paths` + `auto-download=false` in
+  `gradle.properties`), then `cd android && ./gradlew assembleRelease`. Output:
+  `android/app/build/outputs/apk/release/app-release.apk` (debug-signed, sideload-only).
 
 ## Conventions to preserve
 
