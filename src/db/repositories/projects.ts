@@ -1,7 +1,7 @@
 import { desc, eq, inArray } from 'drizzle-orm';
 
 import { nowIso } from '@/domain/dates';
-import type { Discipline, GradeSystem, ProjectStatus } from '@/domain/types';
+import type { Discipline, GradeSystem, HoldType, ProjectStatus } from '@/domain/types';
 import { db } from '../client';
 import { projects } from '../schema';
 
@@ -11,6 +11,7 @@ export interface NewProject {
   gradeSystem: GradeSystem;
   gradeValue: string;
   location?: string | null;
+  holdType?: HoldType | null;
   notes?: string | null;
 }
 
@@ -46,6 +47,7 @@ export function createProject(p: NewProject): number {
       gradeValue: p.gradeValue,
       status: 'active',
       location: p.location?.trim() || null,
+      holdType: p.holdType ?? null,
       notes: p.notes ?? null,
       createdAt: nowIso(),
     })
@@ -74,6 +76,7 @@ export function updateProject(
     gradeValue: string;
     gradeSystem: GradeSystem;
     location: string | null;
+    holdType: HoldType | null;
     notes: string | null;
     status: ProjectStatus;
   }>,

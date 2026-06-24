@@ -1,8 +1,15 @@
 import { desc, eq, isNull } from 'drizzle-orm';
 
 import { nowIso, todayIso } from '@/domain/dates';
+import type { SessionEnvironment } from '@/domain/types';
 import { db } from '../client';
 import { sessions } from '../schema';
+
+export interface NewSession {
+  location?: string | null;
+  theme?: string | null;
+  environment?: SessionEnvironment | null;
+}
 
 /** Avoin (käynnissä oleva) sessio, jos sellainen on. */
 export function getActiveSession() {
@@ -29,13 +36,15 @@ export function listSessions() {
 }
 
 /** Aloita uusi sessio. Useita sessioita per päivä sallitaan. */
-export function startSession(location?: string): number {
+export function startSession(opts: NewSession = {}): number {
   const now = nowIso();
   const res = db
     .insert(sessions)
     .values({
       date: todayIso(),
-      location: location?.trim() || null,
+      location: opts.location?.trim() || null,
+      theme: opts.theme ?? null,
+      environment: opts.environment ?? null,
       startedAt: now,
     })
     .run();

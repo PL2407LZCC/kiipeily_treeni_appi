@@ -11,13 +11,28 @@ export type ProjectStatus = 'active' | 'sent' | 'abandoned' | 'archived';
 
 export type SupplementalKind = 'strength' | 'endurance' | 'other';
 
+/** Otteen/nousun tyyppi (valinnainen ominaisuus). null = määrittelemätön. */
+export type HoldType = 'crimpy' | 'slopy';
+
+/** Session ympäristö (valinnainen): sisä- vai ulkokiipeily. */
+export type SessionEnvironment = 'indoor' | 'outdoor';
+
 export interface Session {
   id: number;
   date: string; // ISO date (YYYY-MM-DD)
   location: string | null;
+  theme: string | null; // valittu teema (session_themes-listalta)
+  environment: SessionEnvironment | null; // indoor | outdoor | null
   notes: string | null;
   startedAt: string; // ISO datetime
   endedAt: string | null;
+}
+
+/** Valittavissa oleva session teema (oletukset + käyttäjän lisäämät). */
+export interface SessionTheme {
+  id: number;
+  name: string;
+  createdAt: string;
 }
 
 export interface SendLog {
@@ -28,6 +43,7 @@ export interface SendLog {
   gradeValue: string;
   count: number;
   flash: boolean;
+  holdType: HoldType | null;
   notes: string | null;
   createdAt: string;
 }
@@ -40,6 +56,7 @@ export interface AttemptLog {
   gradeSystem: GradeSystem;
   gradeValue: string;
   count: number;
+  holdType: HoldType | null;
   notes: string | null;
   createdAt: string;
 }
@@ -52,6 +69,7 @@ export interface Project {
   gradeValue: string;
   status: ProjectStatus;
   location: string | null;
+  holdType: HoldType | null;
   notes: string | null;
   createdAt: string;
   sentAt: string | null;

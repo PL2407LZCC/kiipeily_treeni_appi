@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
 import { formatDateFi, formatTimeFi } from '@/domain/dates';
-import type { Session } from '@/domain/types';
+import type { Session, SessionEnvironment } from '@/domain/types';
 import { useTheme } from '@/hooks/use-theme';
 import { fi } from '@/i18n/fi';
 
@@ -24,6 +24,14 @@ export function SessionCard({
   const theme = useTheme();
   const open = session.endedAt == null;
 
+  const meta = [
+    session.location,
+    session.environment ? fi.environment[session.environment as SessionEnvironment] : null,
+    session.theme,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <Pressable
       onPress={onPress}
@@ -40,8 +48,8 @@ export function SessionCard({
           </View>
         ) : null}
       </View>
-      {session.location ? (
-        <Text style={[styles.location, { color: theme.textSecondary }]}>{session.location}</Text>
+      {meta ? (
+        <Text style={[styles.location, { color: theme.textSecondary }]}>{meta}</Text>
       ) : null}
       <Text style={[styles.stats, { color: theme.textSecondary }]}>
         {sendCount} {fi.timeline.sends} · {attemptCount} {fi.timeline.attempts} · {supplementalCount}{' '}

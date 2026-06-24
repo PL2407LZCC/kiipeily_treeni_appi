@@ -7,11 +7,13 @@ import { appSettings } from '../schema';
 export interface AppSettings {
   boulderDefaultSystem: GradeSystem; // 'font' | 'v'
   showSecondaryGrade: boolean;
+  trackHoldType: boolean;
 }
 
 const DEFAULTS: AppSettings = {
   boulderDefaultSystem: 'font',
   showSecondaryGrade: true,
+  trackHoldType: false,
 };
 
 export function getSettings(): AppSettings {
@@ -20,6 +22,7 @@ export function getSettings(): AppSettings {
   return {
     boulderDefaultSystem: row.boulderDefaultSystem as GradeSystem,
     showSecondaryGrade: row.showSecondaryGrade,
+    trackHoldType: row.trackHoldType,
   };
 }
 
