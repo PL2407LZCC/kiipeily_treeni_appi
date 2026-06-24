@@ -268,10 +268,10 @@ export function applyGradeShift(
     .sort((x, y) => gradeIndex(x.gradeValue, system) - gradeIndex(y.gradeValue, system));
 }
 
-/** Skaalaa jokaisen asteen määrä volyymiprosentilla (pyöristäen). */
+/** Skaalaa jokaisen asteen määrä volyymiprosentilla, pyöristäen YLÖSPÄIN (esim. 1.55 → 2). */
 export function applyVolume(counts: GradeCount[], pct: number): GradeCount[] {
   const factor = 1 + pct / 100;
-  return counts.map((c) => ({ gradeValue: c.gradeValue, count: Math.round(c.count * factor) }));
+  return counts.map((c) => ({ gradeValue: c.gradeValue, count: Math.ceil(c.count * factor) }));
 }
 
 /** Sovella sekä vaikeussiirto että volyymimuutos (jos annettu). */

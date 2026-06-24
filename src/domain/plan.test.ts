@@ -46,12 +46,17 @@ describe('buildPlanTargets', () => {
     expect(targets).toHaveLength(2);
   });
 
-  test('soveltaa volyymimodifikaattorin (pyöristäen) per aste', () => {
+  test('soveltaa volyymimodifikaattorin (pyöristäen ylöspäin) per aste', () => {
     const efforts: ClimbEffort[] = [
       effort({ gradeSystem: 'v', gradeValue: 'V5', count: 5 }),
     ];
-    const targets = buildPlanTargets(efforts, { volumePct: 20 });
-    expect(targets).toEqual([{ gradeSystem: 'v', gradeValue: 'V5', target: 6 }]);
+    expect(buildPlanTargets(efforts, { volumePct: 20 })).toEqual([
+      { gradeSystem: 'v', gradeValue: 'V5', target: 6 }, // 6.0
+    ]);
+    // 5 * 1.1 = 5.5 → ceil 6 (round olisi 6, mutta 5*1.05=5.25 → ceil 6 ≠ round 5)
+    expect(buildPlanTargets(efforts, { volumePct: 5 })).toEqual([
+      { gradeSystem: 'v', gradeValue: 'V5', target: 6 },
+    ]);
   });
 
   test('soveltaa vaikeussiirron lajin asteikolla ja summaa törmäykset', () => {
@@ -82,9 +87,12 @@ describe('buildPlanTargets', () => {
     const efforts: ClimbEffort[] = [
       effort({ gradeSystem: 'v', gradeValue: 'V5', count: 1 }),
     ];
-    // -60% → round(0.4) = 0 → pudotetaan
-    const targets = buildPlanTargets(efforts, { volumePct: -60 });
-    expect(targets).toEqual([]);
+    // -100% → ceil(0) = 0 → pudotetaan. (Ylöspäin pyöristys: pienempi vähennys
+    // ei koskaan tiputa astetta nollaan, esim. -60% → ceil(0.4) = 1.)
+    expect(buildPlanTargets(efforts, { volumePct: -100 })).toEqual([]);
+    expect(buildPlanTargets(efforts, { volumePct: -60 })).toEqual([
+      { gradeSystem: 'v', gradeValue: 'V5', target: 1 },
+    ]);
   });
 
   test('tyhjä syöte → tyhjä lista', () => {

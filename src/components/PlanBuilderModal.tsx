@@ -131,9 +131,10 @@ export function PlanBuilderModal({
               <View style={styles.modRow}>
                 <Stepper
                   value={volumePct}
-                  onChange={(n) => setVolumePct(Math.round(n / VOLUME_STEP) * VOLUME_STEP)}
+                  onChange={setVolumePct}
                   min={VOLUME_MIN}
                   max={VOLUME_MAX}
+                  step={VOLUME_STEP}
                   label={fi.plan.volumeLabel}
                 />
                 <Stepper

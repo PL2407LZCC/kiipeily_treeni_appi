@@ -145,9 +145,11 @@ describe('compareTallies', () => {
 });
 
 describe('modifikaattorit', () => {
-  test('applyVolume skaalaa ja pyöristää (5 → +20% → 6)', () => {
-    expect(applyVolume([{ gradeValue: 'V5', count: 5 }], 20)).toEqual([{ gradeValue: 'V5', count: 6 }]);
-    expect(applyVolume([{ gradeValue: 'V5', count: 5 }], -20)).toEqual([{ gradeValue: 'V5', count: 4 }]);
+  test('applyVolume skaalaa ja pyöristää YLÖSPÄIN (ceil)', () => {
+    expect(applyVolume([{ gradeValue: 'V5', count: 5 }], 20)).toEqual([{ gradeValue: 'V5', count: 6 }]); // 6.0
+    expect(applyVolume([{ gradeValue: 'V5', count: 5 }], 5)).toEqual([{ gradeValue: 'V5', count: 6 }]); // 5.25 → 6 (round olisi 5)
+    expect(applyVolume([{ gradeValue: 'V5', count: 5 }], -20)).toEqual([{ gradeValue: 'V5', count: 4 }]); // 4.0
+    expect(applyVolume([{ gradeValue: 'V5', count: 5 }], -30)).toEqual([{ gradeValue: 'V5', count: 4 }]); // 3.5 → 4
   });
 
   test('applyGradeShift siirtää asteita ja summaa törmäykset', () => {
