@@ -4,7 +4,7 @@ import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import { Spacing } from '@/constants/theme';
 import { Projects } from '@/db/repositories';
 import { defaultSystemForDiscipline } from '@/domain/grades';
-import type { Discipline, GradeSystem } from '@/domain/types';
+import type { Discipline, GradeSystem, HoldType } from '@/domain/types';
 import { useTheme } from '@/hooks/use-theme';
 import { fi } from '@/i18n/fi';
 import { bumpData } from '@/state/dataVersion';
@@ -18,6 +18,7 @@ interface NewProjectModalProps {
   onCreated: (id: number) => void;
   boulderSystem: GradeSystem; // font | v
   showSecondary: boolean;
+  trackHoldType: boolean;
 }
 
 export function NewProjectModal({
@@ -26,12 +27,14 @@ export function NewProjectModal({
   onCreated,
   boulderSystem,
   showSecondary,
+  trackHoldType,
 }: NewProjectModalProps) {
   const theme = useTheme();
   const [discipline, setDiscipline] = useState<Discipline>('boulder');
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [grade, setGrade] = useState<string | null>(null);
+  const [holdType, setHoldType] = useState<HoldType | null>(null);
 
   const system = defaultSystemForDiscipline(discipline, boulderSystem);
   const secondarySystem: GradeSystem | undefined =
@@ -42,6 +45,7 @@ export function NewProjectModal({
     setName('');
     setLocation('');
     setGrade(null);
+    setHoldType(null);
   };
 
   const close = () => {
@@ -57,6 +61,7 @@ export function NewProjectModal({
       gradeSystem: system,
       gradeValue: grade,
       location,
+      holdType: trackHoldType ? holdType : null,
     });
     bumpData();
     reset();
@@ -108,6 +113,23 @@ export function NewProjectModal({
             onPick={setGrade}
             selected={grade}
           />
+
+          {trackHoldType ? (
+            <>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
+                {fi.holdType.prompt}
+              </Text>
+              <SegmentedControl<HoldType | 'none'>
+                segments={[
+                  { value: 'slopy', label: fi.holdType.slopy },
+                  { value: 'none', label: fi.holdType.undefined },
+                  { value: 'crimpy', label: fi.holdType.crimpy },
+                ]}
+                value={holdType ?? 'none'}
+                onChange={(v) => setHoldType(v === 'none' ? null : v)}
+              />
+            </>
+          ) : null}
         </ScrollView>
         <View style={styles.footer}>
           <PrimaryButton label={fi.common.cancel} onPress={close} variant="secondary" flex />

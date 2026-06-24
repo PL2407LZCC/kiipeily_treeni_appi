@@ -14,13 +14,18 @@ import {
   projects,
   sendLogs,
   sessions,
+  sessionThemes,
   supplementalEntries,
 } from '@/db/schema';
 
 export const BACKUP_APP_ID = 'kiipeily-treeni-appi';
-// v2: lisätty attempt_logs (irralliset yritykset). Vanhat v1-tiedostot tuodaan
-// edelleen — puuttuva attemptLogs-avain käsitellään tyhjänä.
-export const BACKUP_VERSION = 2;
+// v2: lisätty attempt_logs (irralliset yritykset).
+// v3: lisätty hold_type-sarakkeet (send_logs/attempt_logs/projects).
+// v4: lisätty session_themes-taulu sekä sessions.theme/environment-sarakkeet.
+// Sarakkeet kulkevat olemassa olevien taulujen mukana; uudet taulut omana avaimenaan.
+// Vanhat tiedostot tuodaan edelleen (puuttuvat kentät jäävät tyhjiksi/null, ja
+// puuttuva session_themes -avain jättää nykyiset teemat ennalleen).
+export const BACKUP_VERSION = 4;
 
 interface BackupFile {
   app: string;
@@ -33,6 +38,7 @@ interface BackupFile {
     projects: unknown[];
     projectAttempts: unknown[];
     supplementalEntries: unknown[];
+    sessionThemes?: unknown[];
     appSettings: unknown[];
   };
 }
@@ -45,6 +51,7 @@ function collectData(): BackupFile['data'] {
     projects: db.select().from(projects).all(),
     projectAttempts: db.select().from(projectAttempts).all(),
     supplementalEntries: db.select().from(supplementalEntries).all(),
+    sessionThemes: db.select().from(sessionThemes).all(),
     appSettings: db.select().from(appSettings).all(),
   };
 }
@@ -115,6 +122,13 @@ export function restoreBackup(backup: BackupFile): void {
       db.insert(projectAttempts).values(d.projectAttempts as any).run();
     if (d.supplementalEntries.length)
       db.insert(supplementalEntries).values(d.supplementalEntries as any).run();
+
+    // session_themes vain jos varmuuskopiossa on avain (vanhat tiedostot jättävät
+    // nykyiset teemat ennalleen).
+    if (d.sessionThemes) {
+      db.delete(sessionThemes).run();
+      if (d.sessionThemes.length) db.insert(sessionThemes).values(d.sessionThemes as any).run();
+    }
 
     if (d.appSettings.length) {
       db.delete(appSettings).run();

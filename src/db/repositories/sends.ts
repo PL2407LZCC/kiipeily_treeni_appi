@@ -1,7 +1,7 @@
 import { desc, eq } from 'drizzle-orm';
 
 import { nowIso } from '@/domain/dates';
-import type { Discipline, GradeSystem } from '@/domain/types';
+import type { Discipline, GradeSystem, HoldType } from '@/domain/types';
 import { db } from '../client';
 import { sendLogs } from '../schema';
 
@@ -12,6 +12,7 @@ export interface NewSend {
   gradeValue: string;
   count?: number;
   flash?: boolean;
+  holdType?: HoldType | null;
   notes?: string | null;
 }
 
@@ -34,6 +35,7 @@ export function addSend(send: NewSend): number {
       gradeValue: send.gradeValue,
       count: send.count ?? 1,
       flash: send.flash ?? false,
+      holdType: send.holdType ?? null,
       notes: send.notes ?? null,
       createdAt: nowIso(),
     })
@@ -43,7 +45,13 @@ export function addSend(send: NewSend): number {
 
 export function updateSend(
   id: number,
-  fields: { count?: number; flash?: boolean; gradeValue?: string; notes?: string | null },
+  fields: {
+    count?: number;
+    flash?: boolean;
+    gradeValue?: string;
+    holdType?: HoldType | null;
+    notes?: string | null;
+  },
 ): void {
   db.update(sendLogs).set(fields).where(eq(sendLogs.id, id)).run();
 }

@@ -4,13 +4,14 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Spacing } from '@/constants/theme';
-import { AttemptLogs, Attempts, Sends, Sessions, Supplemental } from '@/db/repositories';
+import { AttemptLogs, Attempts, Projects, Sends, Sessions, Supplemental } from '@/db/repositories';
 import { formatDateFi, formatTimeFi } from '@/domain/dates';
-import type { Discipline, SupplementalKind } from '@/domain/types';
+import type { Discipline, HoldType, SessionEnvironment, SupplementalKind } from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
-import { fi } from '@/i18n/fi';
+import { fi, holdTypeLabel } from '@/i18n/fi';
 import { bumpData } from '@/state/dataVersion';
+import { useSettings } from '@/state/settings';
 
 export default function SessionDetailScreen() {
   const theme = useTheme();
@@ -51,6 +52,18 @@ export default function SessionDetailScreen() {
     bumpData();
   };
 
+  const trackHoldType = useSettings((s) => s.trackHoldType);
+
+  /** Avaa otetyypin valinta-alert ja tallenna valittu arvo. */
+  const editHoldType = (apply: (holdType: HoldType | null) => void) => {
+    Alert.alert(fi.holdType.prompt, undefined, [
+      { text: fi.holdType.slopy, onPress: () => { apply('slopy'); bumpData(); } },
+      { text: fi.holdType.crimpy, onPress: () => { apply('crimpy'); bumpData(); } },
+      { text: fi.holdType.undefined, onPress: () => { apply(null); bumpData(); } },
+      { text: fi.common.cancel, style: 'cancel' },
+    ]);
+  };
+
   const deleteSession = () => {
     Alert.alert(fi.sessionDetail.deleteSession, fi.sessionDetail.deleteSessionConfirm, [
       { text: fi.common.cancel, style: 'cancel' },
@@ -84,6 +97,8 @@ export default function SessionDetailScreen() {
           {formatTimeFi(session.startedAt)}
           {session.endedAt ? `–${formatTimeFi(session.endedAt)}` : ''}
           {session.location ? ` · ${session.location}` : ''}
+          {session.environment ? ` · ${fi.environment[session.environment as SessionEnvironment]}` : ''}
+          {session.theme ? ` · ${session.theme}` : ''}
         </Text>
 
         {/* Sendit */}
@@ -97,8 +112,13 @@ export default function SessionDetailScreen() {
             <Row
               key={`send-${s.id}`}
               title={`${s.count > 1 ? `${s.count}× ` : ''}${s.gradeValue}${s.flash ? ' ⚡' : ''}`}
-              subtitle={fi.discipline[s.discipline as Discipline]}
+              subtitle={`${fi.discipline[s.discipline as Discipline]}${holdTypeLabel(s.holdType) ? ` · ${holdTypeLabel(s.holdType)}` : ''}`}
               onDelete={() => deleteSend(s.id)}
+              onEdit={
+                trackHoldType
+                  ? () => editHoldType((h) => Sends.updateSend(s.id, { holdType: h }))
+                  : undefined
+              }
             />
           ))
         )}
@@ -116,8 +136,13 @@ export default function SessionDetailScreen() {
             <Row
               key={`loose-${a.id}`}
               title={`${a.count > 1 ? `${a.count}× ` : ''}${a.gradeValue}`}
-              subtitle={fi.discipline[a.discipline as Discipline]}
+              subtitle={`${fi.discipline[a.discipline as Discipline]}${holdTypeLabel(a.holdType) ? ` · ${holdTypeLabel(a.holdType)}` : ''}`}
               onDelete={() => deleteLooseAttempt(a.id)}
+              onEdit={
+                trackHoldType
+                  ? () => editHoldType((h) => AttemptLogs.updateAttemptLog(a.id, { holdType: h }))
+                  : undefined
+              }
             />
           ))
         )}
@@ -135,8 +160,13 @@ export default function SessionDetailScreen() {
             <Row
               key={`att-${a.id}`}
               title={`${a.gradeValue}${a.projectName ? ` · ${a.projectName}` : ''}`}
-              subtitle={`${a.attemptCount} ${fi.timeline.attempts}${a.sent ? ' · Sent ✅' : ''}`}
+              subtitle={`${a.attemptCount} ${fi.timeline.attempts}${a.sent ? ' · Sent ✅' : ''}${holdTypeLabel(a.holdType) ? ` · ${holdTypeLabel(a.holdType)}` : ''}`}
               onDelete={() => deleteAttempt(a.id)}
+              onEdit={
+                trackHoldType
+                  ? () => editHoldType((h) => Projects.updateProject(a.projectId, { holdType: h }))
+                  : undefined
+              }
             />
           ))
         )}
@@ -183,20 +213,23 @@ function Row({
   title,
   subtitle,
   onDelete,
+  onEdit,
 }: {
   title: string;
   subtitle: string;
   onDelete: () => void;
+  /** Jos annettu, tekstialueen napautus muokkaa (esim. otetyyppi). */
+  onEdit?: () => void;
 }) {
   const theme = useTheme();
   return (
     <View style={[styles.row, { backgroundColor: theme.backgroundElement }]}>
-      <View style={{ flex: 1 }}>
+      <Pressable style={{ flex: 1 }} onPress={onEdit} disabled={!onEdit}>
         <Text style={[styles.rowTitle, { color: theme.text }]}>{title}</Text>
         {subtitle ? (
           <Text style={[styles.rowSub, { color: theme.textSecondary }]}>{subtitle}</Text>
         ) : null}
-      </View>
+      </Pressable>
       <Pressable onPress={onDelete} hitSlop={8} style={styles.trash}>
         <Ionicons name="trash-outline" size={20} color={theme.textSecondary} />
       </Pressable>

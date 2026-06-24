@@ -1,12 +1,16 @@
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { Spacing } from '@/constants/theme';
 import { exportBackup, pickAndParseBackup, restoreBackup } from '@/backup/exportImport';
+import { Themes } from '@/db/repositories';
 import { nowIso } from '@/domain/dates';
 import type { GradeSystem } from '@/domain/types';
+import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
 import { fi } from '@/i18n/fi';
 import { bumpData } from '@/state/dataVersion';
@@ -15,6 +19,18 @@ import { useSettings } from '@/state/settings';
 export default function SettingsScreen() {
   const theme = useTheme();
   const settings = useSettings();
+  const themes = useDbQuery(() => Themes.listThemes(), []);
+  const [newTheme, setNewTheme] = useState('');
+
+  const addTheme = () => {
+    const added = Themes.addTheme(newTheme);
+    setNewTheme('');
+    if (added != null) bumpData();
+  };
+  const removeTheme = (id: number) => {
+    Themes.deleteTheme(id);
+    bumpData();
+  };
 
   const doExport = async () => {
     try {
@@ -71,6 +87,48 @@ export default function SettingsScreen() {
             onValueChange={(v) => settings.setShowSecondaryGrade(v)}
           />
         </View>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.label, { color: theme.text }]}>{fi.settings.trackHoldType}</Text>
+            <Text style={[styles.hint, { color: theme.textSecondary }]}>
+              {fi.settings.trackHoldTypeHint}
+            </Text>
+          </View>
+          <Switch
+            value={settings.trackHoldType}
+            onValueChange={(v) => settings.setTrackHoldType(v)}
+          />
+        </View>
+
+        {/* Session teemat */}
+        <Text style={[styles.section, { color: theme.textSecondary, marginTop: Spacing.four }]}>
+          {fi.settings.themes}
+        </Text>
+        <Text style={[styles.hint, { color: theme.textSecondary }]}>{fi.settings.themesHint}</Text>
+        {themes.length === 0 ? (
+          <Text style={[styles.hint, { color: theme.textSecondary }]}>{fi.settings.noThemes}</Text>
+        ) : (
+          themes.map((t) => (
+            <View key={t.id} style={[styles.themeRow, { backgroundColor: theme.backgroundElement }]}>
+              <Text style={[styles.label, { color: theme.text, flex: 1 }]}>{t.name}</Text>
+              <Pressable onPress={() => removeTheme(t.id)} hitSlop={8}>
+                <Ionicons name="trash-outline" size={20} color={theme.textSecondary} />
+              </Pressable>
+            </View>
+          ))
+        )}
+        <View style={styles.addRow}>
+          <TextInput
+            value={newTheme}
+            onChangeText={setNewTheme}
+            placeholder={fi.settings.addThemePlaceholder}
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
+            onSubmitEditing={addTheme}
+            returnKeyType="done"
+          />
+          <PrimaryButton label={fi.settings.addTheme} onPress={addTheme} />
+        </View>
 
         {/* Varmuuskopiointi */}
         <Text style={[styles.section, { color: theme.textSecondary, marginTop: Spacing.four }]}>
@@ -95,6 +153,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800' },
   section: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', marginTop: Spacing.two },
   label: { fontSize: 16, fontWeight: '500' },
+  hint: { fontSize: 13, marginTop: 2, paddingRight: Spacing.two },
   switchRow: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.two },
+  themeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    padding: Spacing.three,
+    marginTop: Spacing.two,
+  },
+  input: { flex: 1, borderRadius: 10, padding: Spacing.three, fontSize: 16 },
+  addRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center', marginTop: Spacing.two },
   about: { fontSize: 14, lineHeight: 20 },
 });

@@ -11,7 +11,9 @@ import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core
 import type {
   Discipline,
   GradeSystem,
+  HoldType,
   ProjectStatus,
+  SessionEnvironment,
   SupplementalKind,
 } from '@/domain/types';
 
@@ -19,9 +21,18 @@ export const sessions = sqliteTable('sessions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   date: text('date').notNull(), // ISO-päivä YYYY-MM-DD
   location: text('location'),
+  theme: text('theme'), // valittu teema-nimi (session_themes), valinnainen
+  environment: text('environment').$type<SessionEnvironment>(), // indoor | outdoor | null
   notes: text('notes'),
   startedAt: text('started_at').notNull(),
   endedAt: text('ended_at'),
+});
+
+/** Valittavissa olevat session teemat (oletukset + käyttäjän lisäämät). */
+export const sessionThemes = sqliteTable('session_themes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(),
+  createdAt: text('created_at').notNull(),
 });
 
 export const sendLogs = sqliteTable(
@@ -36,6 +47,7 @@ export const sendLogs = sqliteTable(
     gradeValue: text('grade_value').notNull(),
     count: integer('count').notNull().default(1),
     flash: integer('flash', { mode: 'boolean' }).notNull().default(false),
+    holdType: text('hold_type').$type<HoldType>(), // crimpy | slopy | null
     notes: text('notes'),
     createdAt: text('created_at').notNull(),
   },
@@ -58,6 +70,7 @@ export const attemptLogs = sqliteTable(
     gradeSystem: text('grade_system').$type<GradeSystem>().notNull(), // font | v | french
     gradeValue: text('grade_value').notNull(),
     count: integer('count').notNull().default(1),
+    holdType: text('hold_type').$type<HoldType>(), // crimpy | slopy | null
     notes: text('notes'),
     createdAt: text('created_at').notNull(),
   },
@@ -72,6 +85,7 @@ export const projects = sqliteTable('projects', {
   gradeValue: text('grade_value').notNull(),
   status: text('status').$type<ProjectStatus>().notNull().default('active'), // active | sent | abandoned | archived
   location: text('location'),
+  holdType: text('hold_type').$type<HoldType>(), // crimpy | slopy | null
   notes: text('notes'),
   createdAt: text('created_at').notNull(),
   sentAt: text('sent_at'),
@@ -123,6 +137,9 @@ export const appSettings = sqliteTable('app_settings', {
   showSecondaryGrade: integer('show_secondary_grade', { mode: 'boolean' })
     .notNull()
     .default(true),
+  trackHoldType: integer('track_hold_type', { mode: 'boolean' })
+    .notNull()
+    .default(false),
 });
 
 /** DDL kaikkien taulujen luomiseen sovelluksen käynnistyessä (idempotentti). */
@@ -131,9 +148,16 @@ export const CREATE_TABLES_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL,
     location TEXT,
+    theme TEXT,
+    environment TEXT,
     notes TEXT,
     started_at TEXT NOT NULL,
     ended_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS session_themes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS send_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,6 +167,7 @@ export const CREATE_TABLES_SQL = `
     grade_value TEXT NOT NULL,
     count INTEGER NOT NULL DEFAULT 1,
     flash INTEGER NOT NULL DEFAULT 0,
+    hold_type TEXT,
     notes TEXT,
     created_at TEXT NOT NULL
   );
@@ -154,6 +179,7 @@ export const CREATE_TABLES_SQL = `
     grade_system TEXT NOT NULL,
     grade_value TEXT NOT NULL,
     count INTEGER NOT NULL DEFAULT 1,
+    hold_type TEXT,
     notes TEXT,
     created_at TEXT NOT NULL
   );
@@ -166,6 +192,7 @@ export const CREATE_TABLES_SQL = `
     grade_value TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     location TEXT,
+    hold_type TEXT,
     notes TEXT,
     created_at TEXT NOT NULL,
     sent_at TEXT
@@ -196,7 +223,8 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS app_settings (
     id INTEGER PRIMARY KEY,
     boulder_default_system TEXT NOT NULL DEFAULT 'font',
-    show_secondary_grade INTEGER NOT NULL DEFAULT 1
+    show_secondary_grade INTEGER NOT NULL DEFAULT 1,
+    track_hold_type INTEGER NOT NULL DEFAULT 0
   );
   INSERT OR IGNORE INTO app_settings (id, boulder_default_system, show_secondary_grade)
     VALUES (1, 'font', 1);

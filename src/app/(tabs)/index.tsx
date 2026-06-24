@@ -12,18 +12,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GradePicker } from '@/components/GradePicker';
+import { HoldTypePrompt } from '@/components/HoldTypePrompt';
 import { NewProjectModal } from '@/components/NewProjectModal';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { Stepper } from '@/components/Stepper';
 import { SupplementalModal } from '@/components/SupplementalModal';
+import { ThemePicker } from '@/components/ThemePicker';
 import { Spacing } from '@/constants/theme';
-import { AttemptLogs, Attempts, Projects, Sends, Sessions } from '@/db/repositories';
+import { AttemptLogs, Attempts, Projects, Sends, Sessions, Themes } from '@/db/repositories';
 import { formatDateFi, formatTimeFi } from '@/domain/dates';
-import type { Discipline } from '@/domain/types';
+import type { Discipline, HoldType, SessionEnvironment } from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
-import { fi } from '@/i18n/fi';
+import { fi, holdTypeLabel } from '@/i18n/fi';
 import { successFeedback, tapFeedback } from '@/lib/haptics';
 import { useActiveSession } from '@/state/activeSession';
 import { bumpData } from '@/state/dataVersion';
@@ -35,11 +37,14 @@ export default function HomeScreen() {
   const active = useActiveSession();
 
   const [startLocation, setStartLocation] = useState('');
+  const [startTheme, setStartTheme] = useState<string | null>(null);
+  const [startEnvironment, setStartEnvironment] = useState<SessionEnvironment | 'none'>('none');
   const [projectModal, setProjectModal] = useState(false);
   const [supplementalModal, setSupplementalModal] = useState(false);
 
   const session = useDbQuery(() => Sessions.getActiveSession(), []);
   const sessionId = session?.id ?? null;
+  const themes = useDbQuery(() => Themes.listThemes(), []);
 
   // Alusta boulderoinnin näyttöasteikko asetusten oletuksesta.
   useEffect(() => {
@@ -48,8 +53,14 @@ export default function HomeScreen() {
   }, [settings.loaded]);
 
   const startSession = () => {
-    Sessions.startSession(startLocation);
+    Sessions.startSession({
+      location: startLocation,
+      theme: startTheme,
+      environment: startEnvironment === 'none' ? null : startEnvironment,
+    });
     setStartLocation('');
+    setStartTheme(null);
+    setStartEnvironment('none');
     bumpData();
   };
 
@@ -72,7 +83,7 @@ export default function HomeScreen() {
   if (!session || sessionId == null) {
     return (
       <SafeAreaView style={[styles.flex, { backgroundColor: theme.background }]} edges={['top']}>
-        <View style={styles.startWrap}>
+        <ScrollView contentContainerStyle={styles.startWrap} keyboardShouldPersistTaps="handled">
           <Text style={[styles.title, { color: theme.text }]}>{fi.home.title}</Text>
           <Text style={[styles.muted, { color: theme.textSecondary }]}>
             {fi.home.noActiveSession}
@@ -84,8 +95,33 @@ export default function HomeScreen() {
             placeholderTextColor={theme.textSecondary}
             style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
           />
+
+          <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+            {fi.home.themeLabel}
+          </Text>
+          <ThemePicker
+            value={startTheme}
+            options={themes.map((t) => t.name)}
+            placeholder={fi.home.themePlaceholder}
+            noneLabel={fi.home.noTheme}
+            onChange={setStartTheme}
+          />
+
+          <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+            {fi.home.environmentLabel}
+          </Text>
+          <SegmentedControl<SessionEnvironment | 'none'>
+            segments={[
+              { value: 'indoor', label: fi.environment.indoor },
+              { value: 'outdoor', label: fi.environment.outdoor },
+              { value: 'none', label: fi.common.none },
+            ]}
+            value={startEnvironment}
+            onChange={setStartEnvironment}
+          />
+
           <PrimaryButton label={fi.home.startSession} onPress={startSession} />
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -149,6 +185,7 @@ export default function HomeScreen() {
         }}
         boulderSystem={active.boulderDisplaySystem}
         showSecondary={settings.showSecondaryGrade}
+        trackHoldType={settings.trackHoldType}
       />
       <SupplementalModal
         visible={supplementalModal}
@@ -183,6 +220,12 @@ function SendMode({ sessionId }: { sessionId: number }) {
   const sends = useDbQuery(() => Sends.listSendsForSession(sessionId), [sessionId]);
   const attempts = useDbQuery(() => AttemptLogs.listAttemptLogsForSession(sessionId), [sessionId]);
 
+  // Otetyypin valinta kirjauksen jälkeen (vain jos asetus päällä).
+  const [pendingHoldType, setPendingHoldType] = useState<{
+    kind: 'send' | 'attempt';
+    id: number;
+  } | null>(null);
+
   const logSend = (grade: string) => {
     const id = Sends.addSend({
       sessionId,
@@ -197,6 +240,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
     if (active.flash) active.toggleFlash();
     tapFeedback();
     bumpData();
+    if (settings.trackHoldType) setPendingHoldType({ kind: 'send', id });
   };
 
   const logAttempt = (grade: string) => {
@@ -211,6 +255,20 @@ function SendMode({ sessionId }: { sessionId: number }) {
     active.setQuantity(1);
     successFeedback(); // erottuva palaute: pitkä painallus rekisteröityi yritykseksi
     bumpData();
+    if (settings.trackHoldType) setPendingHoldType({ kind: 'attempt', id });
+  };
+
+  const chooseHoldType = (holdType: HoldType | null) => {
+    if (!pendingHoldType) return;
+    if (holdType != null) {
+      if (pendingHoldType.kind === 'send') {
+        Sends.updateSend(pendingHoldType.id, { holdType });
+      } else {
+        AttemptLogs.updateAttemptLog(pendingHoldType.id, { holdType });
+      }
+      bumpData();
+    }
+    setPendingHoldType(null);
   };
 
   const undo = () => {
@@ -303,6 +361,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
             {s.flash ? <Ionicons name="flash" size={16} color="#f1c40f" /> : null}
             <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
               {fi.discipline[s.discipline as Discipline]}
+              {holdTypeLabel(s.holdType) ? ` · ${holdTypeLabel(s.holdType)}` : ''}
             </Text>
             <Pressable onPress={() => remove(s.id)} hitSlop={8} style={styles.trash}>
               <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
@@ -335,6 +394,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
               </Text>
               <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
                 {fi.discipline[a.discipline as Discipline]}
+                {holdTypeLabel(a.holdType) ? ` · ${holdTypeLabel(a.holdType)}` : ''}
               </Text>
               <Pressable onPress={() => removeAttempt(a.id)} hitSlop={8} style={styles.trash}>
                 <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
@@ -343,6 +403,8 @@ function SendMode({ sessionId }: { sessionId: number }) {
           ))}
         </>
       ) : null}
+
+      <HoldTypePrompt visible={pendingHoldType != null} onChoose={chooseHoldType} />
     </View>
   );
 }
@@ -487,10 +549,11 @@ function ProjectMode({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   body: { padding: Spacing.three, gap: Spacing.three, paddingBottom: Spacing.six },
-  startWrap: { flex: 1, justifyContent: 'center', padding: Spacing.four, gap: Spacing.three },
+  startWrap: { flexGrow: 1, justifyContent: 'center', padding: Spacing.four, gap: Spacing.three },
   title: { fontSize: 24, fontWeight: '800' },
   muted: { fontSize: 14 },
   input: { borderRadius: 10, padding: Spacing.three, fontSize: 16 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', marginTop: Spacing.two },
   sessionHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   endBtn: { borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   endBtnText: { fontSize: 14, fontWeight: '700' },

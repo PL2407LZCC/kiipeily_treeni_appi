@@ -91,6 +91,7 @@ export function attemptsForSession(sessionId: number) {
       discipline: projects.discipline,
       gradeSystem: projects.gradeSystem,
       gradeValue: projects.gradeValue,
+      holdType: projects.holdType,
       status: projects.status,
     })
     .from(projectAttempts)

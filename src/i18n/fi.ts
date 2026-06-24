@@ -4,6 +4,8 @@
  * flash, redpoint, beta.
  */
 
+import type { HoldType } from '@/domain/types';
+
 export const fi = {
   tabs: {
     home: 'Treeni',
@@ -33,6 +35,16 @@ export const fi = {
     boulder: 'Boulderointi',
     sport: 'Sport',
   },
+  holdType: {
+    prompt: 'Otteen tyyppi?',
+    slopy: 'Slopy',
+    crimpy: 'Crimpy',
+    undefined: 'Ei määritelty',
+  },
+  environment: {
+    indoor: 'Sisä',
+    outdoor: 'Ulko',
+  },
   home: {
     title: 'Treeni',
     noActiveSession: 'Ei käynnissä olevaa sessiota',
@@ -40,6 +52,10 @@ export const fi = {
     endSession: 'Lopeta sessio',
     sessionStarted: 'Sessio käynnissä',
     locationPlaceholder: 'Paikka (valinnainen)',
+    themeLabel: 'Teema',
+    themePlaceholder: 'Valitse teema',
+    noTheme: 'Ei teemaa',
+    environmentLabel: 'Ympäristö',
     modeSend: 'Send',
     modeProject: 'Projecting',
     tapToLog: 'Napauta = send · pidä pohjassa = yritys',
@@ -135,6 +151,13 @@ export const fi = {
     grades: 'Asteikot',
     boulderDefault: 'Boulder-oletusasteikko',
     showSecondary: 'Näytä toissijainen aste (Font ↔ V)',
+    trackHoldType: 'Kysy otteen tyyppi (Slopy/Crimpy)',
+    trackHoldTypeHint: 'Kirjauksen jälkeen valitse otetyyppi: Slopy, Crimpy tai Ei määritelty.',
+    themes: 'Session teemat',
+    themesHint: 'Valittavissa sessiota aloitettaessa.',
+    addThemePlaceholder: 'Uuden teeman nimi',
+    addTheme: 'Lisää',
+    noThemes: 'Ei teemoja',
     backup: 'Varmuuskopiointi',
     export: 'Vie JSON',
     import: 'Tuo JSON',
@@ -148,3 +171,9 @@ export const fi = {
 } as const;
 
 export type Strings = typeof fi;
+
+/** Otetyypin näyttöteksti; null/undefined → ei näytettävää tekstiä. */
+export function holdTypeLabel(holdType: HoldType | null | undefined): string | null {
+  if (!holdType) return null;
+  return fi.holdType[holdType];
+}

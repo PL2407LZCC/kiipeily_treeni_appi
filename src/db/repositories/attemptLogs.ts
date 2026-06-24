@@ -7,7 +7,7 @@
 import { desc, eq } from 'drizzle-orm';
 
 import { nowIso } from '@/domain/dates';
-import type { Discipline, GradeSystem } from '@/domain/types';
+import type { Discipline, GradeSystem, HoldType } from '@/domain/types';
 import { db } from '../client';
 import { attemptLogs } from '../schema';
 
@@ -17,6 +17,7 @@ export interface NewAttemptLog {
   gradeSystem: GradeSystem;
   gradeValue: string;
   count?: number;
+  holdType?: HoldType | null;
   notes?: string | null;
 }
 
@@ -38,11 +39,19 @@ export function addAttemptLog(a: NewAttemptLog): number {
       gradeSystem: a.gradeSystem,
       gradeValue: a.gradeValue,
       count: a.count ?? 1,
+      holdType: a.holdType ?? null,
       notes: a.notes ?? null,
       createdAt: nowIso(),
     })
     .run();
   return Number(res.lastInsertRowId);
+}
+
+export function updateAttemptLog(
+  id: number,
+  fields: { count?: number; gradeValue?: string; holdType?: HoldType | null; notes?: string | null },
+): void {
+  db.update(attemptLogs).set(fields).where(eq(attemptLogs.id, id)).run();
 }
 
 export function deleteAttemptLog(id: number): void {

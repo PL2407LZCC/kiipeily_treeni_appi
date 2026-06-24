@@ -11,15 +11,18 @@ import type { GradeSystem } from '@/domain/types';
 interface SettingsState {
   boulderDefaultSystem: GradeSystem; // 'font' | 'v'
   showSecondaryGrade: boolean;
+  trackHoldType: boolean;
   loaded: boolean;
   load: () => void;
   setBoulderDefaultSystem: (s: GradeSystem) => void;
   setShowSecondaryGrade: (v: boolean) => void;
+  setTrackHoldType: (v: boolean) => void;
 }
 
 export const useSettings = create<SettingsState>((set) => ({
   boulderDefaultSystem: 'font',
   showSecondaryGrade: true,
+  trackHoldType: false,
   loaded: false,
 
   load: () => {
@@ -33,5 +36,9 @@ export const useSettings = create<SettingsState>((set) => ({
   setShowSecondaryGrade: (showSecondaryGrade) => {
     Settings.saveSettings({ showSecondaryGrade });
     set({ showSecondaryGrade });
+  },
+  setTrackHoldType: (trackHoldType) => {
+    Settings.saveSettings({ trackHoldType });
+    set({ trackHoldType });
   },
 }));
