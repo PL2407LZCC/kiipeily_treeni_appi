@@ -30,6 +30,7 @@ export function gradePyramid(
     if (c.discipline !== discipline) continue;
     const normalized = convert(c.gradeValue, c.gradeSystem, target);
     if (normalized == null) continue;
+    if (gradeIndex(normalized, target) === -1) continue;
     counts.set(normalized, (counts.get(normalized) ?? 0) + c.count);
   }
 
