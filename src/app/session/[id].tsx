@@ -17,12 +17,22 @@ export default function SessionDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const id = Number(params.id);
+  const validId = Number.isFinite(id) ? id : null;
 
-  const session = useDbQuery(() => Sessions.getSession(id), [id]);
-  const sends = useDbQuery(() => Sends.listSendsForSession(id), [id]);
-  const looseAttempts = useDbQuery(() => AttemptLogs.listAttemptLogsForSession(id), [id]);
-  const attempts = useDbQuery(() => Attempts.attemptsForSession(id), [id]);
-  const supplemental = useDbQuery(() => Supplemental.listSupplementalForSession(id), [id]);
+  const session = useDbQuery(
+    () => (validId != null ? Sessions.getSession(validId) : undefined),
+    [validId],
+  );
+  const sends = useDbQuery(() => (validId != null ? Sends.listSendsForSession(validId) : []), [validId]);
+  const looseAttempts = useDbQuery(
+    () => (validId != null ? AttemptLogs.listAttemptLogsForSession(validId) : []),
+    [validId],
+  );
+  const attempts = useDbQuery(() => (validId != null ? Attempts.attemptsForSession(validId) : []), [validId]);
+  const supplemental = useDbQuery(
+    () => (validId != null ? Supplemental.listSupplementalForSession(validId) : []),
+    [validId],
+  );
 
   const deleteSend = (sendId: number) => {
     Sends.deleteSend(sendId);
