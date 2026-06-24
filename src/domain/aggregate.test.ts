@@ -145,11 +145,12 @@ describe('compareTallies', () => {
 });
 
 describe('modifikaattorit', () => {
-  test('applyVolume skaalaa ja pyöristää YLÖSPÄIN (ceil)', () => {
+  test('applyVolume pyöristää ylös vain jos murto-osa > 0.5', () => {
     expect(applyVolume([{ gradeValue: 'V5', count: 5 }], 20)).toEqual([{ gradeValue: 'V5', count: 6 }]); // 6.0
-    expect(applyVolume([{ gradeValue: 'V5', count: 5 }], 5)).toEqual([{ gradeValue: 'V5', count: 6 }]); // 5.25 → 6 (round olisi 5)
     expect(applyVolume([{ gradeValue: 'V5', count: 5 }], -20)).toEqual([{ gradeValue: 'V5', count: 4 }]); // 4.0
-    expect(applyVolume([{ gradeValue: 'V5', count: 5 }], -30)).toEqual([{ gradeValue: 'V5', count: 4 }]); // 3.5 → 4
+    expect(applyVolume([{ gradeValue: 'V5', count: 1 }], 60)).toEqual([{ gradeValue: 'V5', count: 2 }]); // 1.6 → 2
+    expect(applyVolume([{ gradeValue: 'V5', count: 1 }], 50)).toEqual([{ gradeValue: 'V5', count: 1 }]); // 1.5 → 1 (ei > .5)
+    expect(applyVolume([{ gradeValue: 'V5', count: 1 }], 40)).toEqual([{ gradeValue: 'V5', count: 1 }]); // 1.4 → 1
   });
 
   test('applyGradeShift siirtää asteita ja summaa törmäykset', () => {

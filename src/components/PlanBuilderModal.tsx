@@ -22,8 +22,8 @@ interface PlanBuilderModalProps {
   onUse: (plan: SessionPlan) => void;
 }
 
-/** Volyymi-% säädetään 10 %:n askelin; grade shift yhden asteen askelin. */
-const VOLUME_STEP = 10;
+/** Volyymi-% säädetään 2 %:n askelin; grade shift yhden asteen askelin. */
+const VOLUME_STEP = 2;
 const VOLUME_MIN = -50;
 const VOLUME_MAX = 100;
 const GRADE_SHIFT_MIN = -3;
