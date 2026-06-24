@@ -2,20 +2,79 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project status
-
-This repository is at its initial state — it currently contains only `README.md` and `.gitignore`. There is **no source code, build system, test setup, or chosen tech stack yet**. The sections below reflect what is known; update this file as the codebase takes shape.
-
 ## What this project is
 
-"Kiipeily Treeni Appi" (Finnish: *Climbing Training App*) — an application for planning and tracking climbing training (kiipeilytreenien suunnitteluun ja seurantaan).
+"Kiipeily Treeni Appi" (Finnish: *Climbing Training App*) — a native mobile app for logging
+and tracking climbing training (boulder + French sport). Its differentiator is handling
+**repeated climbs and attempt counts** properly: log sends with repeats, or switch into
+**projecting mode** and accumulate attempts on a project across sessions until it's sent.
 
-The README and project description are in Finnish; expect Finnish-language naming and user-facing text.
+In **Send mode**, a **short tap** on a grade logs a send; a **long-press** (~800 ms,
+`ATTEMPT_LONG_PRESS_MS` in `src/app/(tabs)/index.tsx`) logs a **loose attempt** at that grade
+— a failed/unsent try that isn't tied to a project (e.g. the first two goes before sending on
+the third). These live in the `attempt_logs` table (separate from `project_attempts`) and are
+**excluded from stats** (pyramid/volume count sends + sent projects only).
+
+UI text is **Finnish**; climbing jargon stays **English** (send, project, projecting, flash,
+redpoint, beta). See `PLAN.md` for the full product/data-model spec.
 
 ## Tech stack
 
-Not yet chosen. The `.gitignore` is written to accommodate multiple ecosystems (Node.js: `node_modules/`, `dist/`; PHP: `vendor/`; Python: `__pycache__/`, `.venv/`) but does not commit the project to any of them. When introducing a stack, prune `.gitignore` to the one(s) actually used and record the build/lint/test commands here.
+- **Expo (managed) + TypeScript**, React Native 0.85, React 19 — Expo SDK 56.
+- **expo-router** (file-based routing, typed routes) — screens live in `src/app/`.
+- **expo-sqlite + drizzle-orm** (`drizzle-orm/expo-sqlite`) — local, offline-first DB.
+  Tables are created on startup via idempotent DDL in `src/db/client.ts` (no drizzle-kit
+  migrations); the drizzle schema in `src/db/schema.ts` provides type-safe queries.
+- **zustand** — lightweight UI state (`src/state/`): active-session UI, settings mirror, and a
+  global `dataVersion` counter that `useDbQuery` watches to re-run reads after a mutation.
+- **expo-haptics** (tap feedback), **expo-file-system + expo-sharing** (JSON export/import),
+  **@expo/vector-icons** (Ionicons), **react-native-svg** (installed; charts are currently
+  View-based in `src/components/BarChart.tsx`).
+
+Storage is **on-device only** — no cloud, no accounts. Backup is manual JSON export/import in
+Settings (`src/backup/exportImport.ts`).
+
+## Project layout
+
+```
+src/
+  app/                  expo-router screens
+    _layout.tsx         root Stack + DB init + settings load
+    (tabs)/             index (Treeni), timeline, projects, stats, settings
+    session/[id].tsx    session detail
+  db/        client.ts, schema.ts, repositories/ (sessions, sends, attemptLogs, projects, attempts, supplemental, settings)
+  domain/    grades.ts (scales + Font↔V conversion), stats.ts (pyramid/volume), types.ts, dates.ts
+  state/     activeSession.ts, settings.ts, dataVersion.ts
+  components/ GradePicker, Stepper, SegmentedControl, ProjectCard, SessionCard, BarChart, modals, ...
+  i18n/      fi.ts (Finnish strings; English jargon)
+  backup/    exportImport.ts
+  hooks/     use-db-query.ts, use-theme.ts, ...
+```
+
+## Commands
+
+> NOTE: the user's global `~/.npmrc` sets `workspaces=true`, which breaks npm/npx/`create-expo-app`
+> in a non-workspace repo. Prefix npm/npx commands with `npm_config_workspaces=false` (or
+> `$env:npm_config_workspaces='false'` in PowerShell) when they fail with an ENOENT for a
+> missing root `package.json`.
+
+- **Run:** `npx expo start` → open in Expo Go (phone) or an Android/iOS simulator.
+- **Typecheck:** `npm run typecheck` (`tsc --noEmit`).
+- **Unit tests:** `npm test` (Jest; covers `src/domain/grades.ts` and `stats.ts`).
+- **Bundle check (no device):** `npx expo export --platform android --output-dir dist-check`.
+- **Lint:** `npm run lint` (`expo lint`).
+- **Android APK:** see **[BUILD.md](BUILD.md)**. Short version: native `android/` is generated
+  (gitignored) via `expo prebuild`; the build needs a **JDK 17 toolchain** (`JAVA_HOME` →
+  JDK 17, or set `org.gradle.java.installations.paths` + `auto-download=false` in
+  `gradle.properties`), then `cd android && ./gradlew assembleRelease`. Output:
+  `android/app/build/outputs/apk/release/app-release.apk` (debug-signed, sideload-only).
 
 ## Conventions to preserve
 
-- Secrets stay out of version control: `.env*` and `*.key` are gitignored. Keep credentials in environment files, never hardcoded.
+- **Data access:** mutate through `src/db/repositories/*`, then call `bumpData()` so screens
+  using `useDbQuery` refresh. Don't query drizzle directly from screens for writes.
+- **Grades:** boulder uses Font/V (Font default, with Font↔V conversion in `grades.ts`, marked
+  approximate); sport uses the French scale. Stats union sends + sent projects.
+- **i18n:** add UI strings to `src/i18n/fi.ts`; keep climbing jargon in English.
+- Secrets stay out of version control: `.env*` and `*.key` are gitignored. Keep credentials in
+  environment files, never hardcoded.

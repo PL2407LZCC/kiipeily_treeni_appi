@@ -1,31 +1,43 @@
-# Dependencies
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
 node_modules/
-vendor/
 
-# Build output
+# Expo
+.expo/
 dist/
-build/
-out/
-*.log
+web-build/
+expo-env.d.ts
 
-# Environment / secrets
-.env
-.env.local
-.env.*.local
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
 *.key
+*.mobileprovision
 
-# OS files
-Thumbs.db
-Desktop.ini
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
 .DS_Store
+*.pem
 
-# Editor / IDE
-.vscode/
-.idea/
-*.swp
+# local env files (secrets stay out of VCS)
+.env*
 
-# Python (if used)
-__pycache__/
-*.py[cod]
-.venv/
-venv/
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
