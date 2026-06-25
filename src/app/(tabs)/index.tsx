@@ -23,6 +23,7 @@ import { ThemePicker } from '@/components/ThemePicker';
 import { Spacing } from '@/constants/theme';
 import { AttemptLogs, Attempts, Projects, Sends, Sessions, Themes } from '@/db/repositories';
 import { daysAgoIso, formatDateFi, formatTimeFi } from '@/domain/dates';
+import { evaluateLog, planProgress, type LogVerdict } from '@/domain/planProgress';
 import type { Discipline, HoldType, SessionEnvironment, SessionPlan } from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
@@ -316,13 +317,20 @@ function SendMode({ sessionId }: { sessionId: number }) {
   const sends = useDbQuery(() => Sends.listSendsForSession(sessionId), [sessionId]);
   const attempts = useDbQuery(() => AttemptLogs.listAttemptLogsForSession(sessionId), [sessionId]);
 
+  // Suunnitelma + session efforts (reaktiivinen: päivittyy bumpData()n jälkeen).
+  const plan = useDbQuery(() => Sessions.getSessionPlan(sessionId), [sessionId]);
+  const efforts = useDbQuery(() => Sessions.sessionEfforts(sessionId), [sessionId]);
+  const planActive = plan != null && plan.discipline === active.discipline;
+  const progressRows = planActive ? planProgress(plan, efforts, system) : [];
+
   // Otetyypin valinta kirjauksen jälkeen (vain jos asetus päällä).
   const [pendingHoldType, setPendingHoldType] = useState<{
     kind: 'send' | 'attempt';
     id: number;
   } | null>(null);
 
-  const logSend = (grade: string) => {
+  // Varsinaiset insert-rungot (kutsutaan vasta kun enforcement on läpäisty).
+  const doLogSend = (grade: string) => {
     const id = Sends.addSend({
       sessionId,
       discipline: active.discipline,
@@ -339,7 +347,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
     if (settings.trackHoldType) setPendingHoldType({ kind: 'send', id });
   };
 
-  const logAttempt = (grade: string) => {
+  const doLogAttempt = (grade: string) => {
     const id = AttemptLogs.addAttemptLog({
       sessionId,
       discipline: active.discipline,
@@ -352,6 +360,34 @@ function SendMode({ sessionId }: { sessionId: number }) {
     successFeedback(); // erottuva palaute: pitkä painallus rekisteröityi yritykseksi
     bumpData();
     if (settings.trackHoldType) setPendingHoldType({ kind: 'attempt', id });
+  };
+
+  // Pehmeä enforcement: arvioi ENNEN insertointia; varoita + salli ohitus.
+  const confirmThenLog = (verdict: LogVerdict, proceed: () => void) => {
+    if (verdict === 'ok') {
+      proceed();
+      return;
+    }
+    const title = verdict === 'over' ? fi.plan.overTitle : fi.plan.offPlanTitle;
+    const message = verdict === 'over' ? fi.plan.overMsg : fi.plan.offPlanMsg;
+    Alert.alert(title, message, [
+      { text: fi.common.cancel, style: 'cancel' },
+      { text: fi.plan.logAnyway, onPress: proceed },
+    ]);
+  };
+
+  const logSend = (grade: string) => {
+    const verdict = planActive
+      ? evaluateLog(plan, efforts, active.discipline, system, system, grade, active.quantity)
+      : 'ok';
+    confirmThenLog(verdict, () => doLogSend(grade));
+  };
+
+  const logAttempt = (grade: string) => {
+    const verdict = planActive
+      ? evaluateLog(plan, efforts, active.discipline, system, system, grade, active.quantity)
+      : 'ok';
+    confirmThenLog(verdict, () => doLogAttempt(grade));
   };
 
   const chooseHoldType = (holdType: HoldType | null) => {
@@ -424,6 +460,36 @@ function SendMode({ sessionId }: { sessionId: number }) {
           </Text>
         </Pressable>
       </View>
+
+      {planActive && progressRows.length > 0 ? (
+        <View style={[styles.progressPanel, { backgroundColor: theme.backgroundElement }]}>
+          <Text style={[styles.progressTitle, { color: theme.text }]}>
+            {fi.plan.progressTitle}
+          </Text>
+          <View style={styles.progressRows}>
+            {progressRows.map((r) => {
+              const met = r.current >= r.target;
+              const over = r.current > r.target;
+              const tint = over ? '#e67e22' : met ? '#2ecc71' : theme.textSecondary;
+              return (
+                <View key={r.grade} style={styles.progressRow}>
+                  <Ionicons
+                    name={
+                      over ? 'alert-circle' : met ? 'checkmark-circle' : 'ellipse-outline'
+                    }
+                    size={16}
+                    color={tint}
+                  />
+                  <Text style={[styles.progressGrade, { color: theme.text }]}>{r.grade}</Text>
+                  <Text style={[styles.progressCount, { color: tint }]}>
+                    {r.current}/{r.target}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
 
       <Text style={[styles.hint, { color: theme.textSecondary }]}>{fi.home.tapToLog}</Text>
       <GradePicker
@@ -520,6 +586,10 @@ function ProjectMode({
   const projects = useDbQuery(() => Projects.listActiveProjects(), []);
   const selectedId = active.selectedProjectId;
 
+  // Suunnitelma + session efforts pehmeää enforcementtia varten (vain +1).
+  const plan = useDbQuery(() => Sessions.getSessionPlan(sessionId), [sessionId]);
+  const efforts = useDbQuery(() => Sessions.sessionEfforts(sessionId), [sessionId]);
+
   // Tyhjennä valinta jos projekti ei enää aktiivisten joukossa.
   useEffect(() => {
     if (selectedId != null && !projects.some((p) => p.id === selectedId)) {
@@ -541,11 +611,38 @@ function ProjectMode({
 
   const thisSession = sessionAttempt?.attemptCount ?? 0;
 
-  const addAttempt = (by: number) => {
+  const doAddAttempt = (by: number) => {
     if (selectedId == null) return;
     Attempts.addAttempts(selectedId, sessionId, by);
     tapFeedback();
     bumpData();
+  };
+
+  const addAttempt = (by: number) => {
+    if (selectedId == null) return;
+    // Enforcement vain lisättäessä (+1) ja vain jos suunnitelma koskee tätä lajia.
+    if (by > 0 && selected && plan != null && plan.discipline === selected.discipline) {
+      const dispSys = selected.discipline === 'sport' ? 'french' : active.boulderDisplaySystem;
+      const verdict = evaluateLog(
+        plan,
+        efforts,
+        selected.discipline,
+        dispSys,
+        selected.gradeSystem,
+        selected.gradeValue,
+        by,
+      );
+      if (verdict !== 'ok') {
+        const title = verdict === 'over' ? fi.plan.overTitle : fi.plan.offPlanTitle;
+        const message = verdict === 'over' ? fi.plan.overMsg : fi.plan.offPlanMsg;
+        Alert.alert(title, message, [
+          { text: fi.common.cancel, style: 'cancel' },
+          { text: fi.plan.logAnyway, onPress: () => doAddAttempt(by) },
+        ]);
+        return;
+      }
+    }
+    doAddAttempt(by);
   };
 
   const markSent = () => {
@@ -672,6 +769,12 @@ const styles = StyleSheet.create({
   },
   flashText: { fontSize: 15, fontWeight: '700' },
   hint: { fontSize: 13, textAlign: 'center' },
+  progressPanel: { borderRadius: 12, padding: Spacing.three, gap: Spacing.two },
+  progressTitle: { fontSize: 14, fontWeight: '700' },
+  progressRows: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.three },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  progressGrade: { fontSize: 14, fontWeight: '700' },
+  progressCount: { fontSize: 14, fontWeight: '700' },
   listHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontSize: 16, fontWeight: '700' },
   undoBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
