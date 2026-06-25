@@ -121,7 +121,23 @@ export interface PlanTarget {
   gradeSystem: GradeSystem;
   gradeValue: string;
   target: number;
+  /** Otetyyppi-ulottuvuus (vain jos suunnitelman dims.holdType päällä). */
+  holdType?: HoldType | null;
+  /** Jyrkkyys-ulottuvuus (vain jos suunnitelman dims.steepness päällä). */
+  steepness?: Steepness | null;
 }
+
+/**
+ * Suunnitelman ulottuvuus-kytkimet: jakaako tavoitteet otetyypin / jyrkkyyden
+ * mukaan. Per-suunnitelma (EI globaali asetus).
+ */
+export interface PlanDims {
+  holdType: boolean;
+  steepness: boolean;
+}
+
+/** Oletus-dims vanhoille suunnitelmille jotka tallennettiin ennen tätä ominaisuutta. */
+export const DEFAULT_PLAN_DIMS: PlanDims = { holdType: false, steepness: false };
 
 /**
  * Guided-session-suunnitelma: johdettu menneestä sessiosta + modifikaattoreista,
@@ -133,6 +149,8 @@ export interface SessionPlan {
   label: string;
   sourceSessionId: number | null;
   modifier: { volumePct?: number; gradeShift?: number };
+  /** Ulottuvuus-kytkimet: jaetaanko tavoitteet otetyypin/jyrkkyyden mukaan. */
+  dims: PlanDims;
   targets: PlanTarget[];
 }
 
@@ -147,6 +165,8 @@ export interface TrainingPlanTemplate {
   discipline: Discipline;
   theme: string | null;
   environment: SessionEnvironment | null;
+  /** Ulottuvuus-kytkimet: jaetaanko tavoitteet otetyypin/jyrkkyyden mukaan. */
+  dims: PlanDims;
   targets: PlanTarget[];
   createdAt: string;
 }

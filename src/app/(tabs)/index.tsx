@@ -27,6 +27,8 @@ import { evaluateLog, planProgress, type LogVerdict } from '@/domain/planProgres
 import type {
   Discipline,
   HoldType,
+  PlanDims,
+  PlanTarget,
   SessionEnvironment,
   SessionPlan,
   Steepness,
@@ -38,6 +40,29 @@ import { successFeedback, tapFeedback } from '@/lib/haptics';
 import { useActiveSession } from '@/state/activeSession';
 import { bumpData } from '@/state/dataVersion';
 import { useSettings } from '@/state/settings';
+
+/** Ulottuvuus-suffiksi suunnitelman tavoitteelle/edistymisriville, esim. " · crimpy". */
+function planDimSuffix(
+  dims: PlanDims | undefined,
+  holdType: HoldType | null | undefined,
+  steepness: Steepness | null | undefined,
+): string {
+  const parts: string[] = [];
+  if (dims?.holdType) {
+    const l = holdTypeLabel(holdType);
+    if (l) parts.push(l);
+  }
+  if (dims?.steepness) {
+    const l = steepnessLabel(steepness);
+    if (l) parts.push(l);
+  }
+  return parts.length ? ` · ${parts.join(' · ')}` : '';
+}
+
+/** Yksilöivä avain suunnitelman tavoitteelle (aste + ulottuvuusarvot). */
+function targetChipKey(t: PlanTarget): string {
+  return `${t.gradeSystem}:${t.gradeValue}:${t.holdType ?? '∅'}:${t.steepness ?? '∅'}`;
+}
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -157,10 +182,11 @@ export default function HomeScreen() {
                   <View style={styles.planTargets}>
                     {draftPlan.targets.map((t) => (
                       <View
-                        key={`${t.gradeSystem}:${t.gradeValue}`}
+                        key={targetChipKey(t)}
                         style={[styles.planChip, { backgroundColor: theme.background }]}>
                         <Text style={[styles.planChipText, { color: theme.text }]}>
                           {t.target}× {t.gradeValue}
+                          {planDimSuffix(draftPlan.dims, t.holdType, t.steepness)}
                         </Text>
                       </View>
                     ))}
@@ -235,10 +261,11 @@ export default function HomeScreen() {
             <View style={styles.planTargets}>
               {activePlan.targets.map((t) => (
                 <View
-                  key={`${t.gradeSystem}:${t.gradeValue}`}
+                  key={targetChipKey(t)}
                   style={[styles.planChip, { backgroundColor: theme.background }]}>
                   <Text style={[styles.planChipText, { color: theme.text }]}>
                     {t.target}× {t.gradeValue}
+                    {planDimSuffix(activePlan.dims, t.holdType, t.steepness)}
                   </Text>
                 </View>
               ))}
@@ -330,9 +357,18 @@ function SendMode({ sessionId }: { sessionId: number }) {
   const planActive = plan != null && plan.discipline === active.discipline;
   const progressRows = planActive ? planProgress(plan, efforts, system) : [];
 
+  // Aktiivisen suunnitelman ulottuvuus-kytkimet (vain jos suunnitelma koskee tätä lajia).
+  const planDims = planActive ? plan.dims : undefined;
+  const planHasDims = !!(planDims?.holdType || planDims?.steepness);
+
+  // Efektiiviset seuranta-asetukset: globaali asetus TAI suunnitelman ulottuvuus pakottaa
+  // ulottuvuuden kaappauksen tälle sessiolle, vaikka globaali asetus olisi pois.
+  const effTrackHoldType = settings.trackHoldType || !!planDims?.holdType;
+  const effTrackSteepness = settings.trackSteepness || !!planDims?.steepness;
+
   // Kirjataanko tageja (otetyyppi ja/tai jyrkkyys)? Jos kyllä, insert lykätään
   // ClimbTagPromptin ratkaisuun asti — tämä korjaa tuplanapautusbugin.
-  const tagsTracked = settings.trackHoldType || settings.trackSteepness;
+  const tagsTracked = effTrackHoldType || effTrackSteepness;
 
   // Lykätty kirjaus: odottaa tagien valintaa. Estää myös toisen kirjauksen (early return).
   const [pending, setPending] = useState<{
@@ -388,48 +424,74 @@ function SendMode({ sessionId }: { sessionId: number }) {
     ]);
   };
 
-  const logSend = (grade: string) => {
+  // Aloita kirjaus: grade-only-suunnitelmassa enforcement arvioidaan jo tässä (aste tiedossa);
+  // ulottuvuus-suunnitelmassa enforcement siirtyy committiin, koska otetyyppi/jyrkkyys
+  // selviävät vasta ClimbTagPromptista.
+  const beginLog = (kind: 'send' | 'attempt', grade: string) => {
     if (pending != null) return; // prompti auki → estä toinen kirjaus
-    const verdict = planActive
-      ? evaluateLog(plan, efforts, active.discipline, system, system, grade, active.quantity)
-      : 'ok';
-    confirmThenLog(verdict, () => {
+    const start = () => {
       if (tagsTracked) {
         // Lykkää insert; nollaa määrä heti, jotta stepper tyhjenee.
-        setPending({ kind: 'send', grade, quantity: active.quantity });
+        setPending({ kind, grade, quantity: active.quantity });
         active.setQuantity(1);
       } else {
-        doLogSend(grade, active.quantity, null, null);
+        if (kind === 'send') doLogSend(grade, active.quantity, null, null);
+        else doLogAttempt(grade, active.quantity, null, null);
         active.setQuantity(1);
       }
-    });
+    };
+
+    if (planActive && !planHasDims) {
+      // Grade-only: arvioi heti astenapautuksessa (kuten ennen).
+      const verdict = evaluateLog(
+        plan,
+        efforts,
+        active.discipline,
+        system,
+        system,
+        grade,
+        active.quantity,
+      );
+      confirmThenLog(verdict, start);
+    } else {
+      // Ei suunnitelmaa, tai ulottuvuus-suunnitelma (arvio committiin).
+      start();
+    }
   };
 
-  const logAttempt = (grade: string) => {
-    if (pending != null) return;
-    const verdict = planActive
-      ? evaluateLog(plan, efforts, active.discipline, system, system, grade, active.quantity)
-      : 'ok';
-    confirmThenLog(verdict, () => {
-      if (tagsTracked) {
-        setPending({ kind: 'attempt', grade, quantity: active.quantity });
-        active.setQuantity(1);
-      } else {
-        doLogAttempt(grade, active.quantity, null, null);
-        active.setQuantity(1);
-      }
-    });
-  };
+  const logSend = (grade: string) => beginLog('send', grade);
+  const logAttempt = (grade: string) => beginLog('attempt', grade);
 
-  // ClimbTagPrompt ratkesi: kirjaa lykätty rivi valituilla tageilla.
+  // ClimbTagPrompt ratkesi: kirjaa lykätty rivi valituilla tageilla. Ulottuvuus-suunnitelmassa
+  // enforcement arvioidaan vasta nyt (otetyyppi/jyrkkyys tiedossa) ennen DB-insertiä.
   const commitTags = (holdType: HoldType | null, steepness: Steepness | null) => {
     if (!pending) return;
-    if (pending.kind === 'send') {
-      doLogSend(pending.grade, pending.quantity, holdType, steepness);
-    } else {
-      doLogAttempt(pending.grade, pending.quantity, holdType, steepness);
-    }
+    const p = pending;
+    const proceed = () => {
+      if (p.kind === 'send') {
+        doLogSend(p.grade, p.quantity, holdType, steepness);
+      } else {
+        doLogAttempt(p.grade, p.quantity, holdType, steepness);
+      }
+    };
     setPending(null);
+
+    if (planActive && planHasDims) {
+      const verdict = evaluateLog(
+        plan,
+        efforts,
+        active.discipline,
+        system,
+        system,
+        p.grade,
+        p.quantity,
+        holdType,
+        steepness,
+      );
+      confirmThenLog(verdict, proceed);
+    } else {
+      proceed();
+    }
   };
 
   const cancelTags = () => setPending(null); // ei kirjata mitään
@@ -502,8 +564,11 @@ function SendMode({ sessionId }: { sessionId: number }) {
               const met = r.current >= r.target;
               const over = r.current > r.target;
               const tint = over ? '#e67e22' : met ? '#2ecc71' : theme.textSecondary;
+              const dimSuffix = planDimSuffix(planDims, r.holdType, r.steepness);
               return (
-                <View key={r.grade} style={styles.progressRow}>
+                <View
+                  key={`${r.grade}:${r.holdType ?? '∅'}:${r.steepness ?? '∅'}`}
+                  style={styles.progressRow}>
                   <Ionicons
                     name={
                       over ? 'alert-circle' : met ? 'checkmark-circle' : 'ellipse-outline'
@@ -511,7 +576,10 @@ function SendMode({ sessionId }: { sessionId: number }) {
                     size={16}
                     color={tint}
                   />
-                  <Text style={[styles.progressGrade, { color: theme.text }]}>{r.grade}</Text>
+                  <Text style={[styles.progressGrade, { color: theme.text }]}>
+                    {r.grade}
+                    {dimSuffix}
+                  </Text>
                   <Text style={[styles.progressCount, { color: tint }]}>
                     {r.current}/{r.target}
                   </Text>
@@ -601,8 +669,8 @@ function SendMode({ sessionId }: { sessionId: number }) {
 
       <ClimbTagPrompt
         visible={pending != null}
-        trackHoldType={settings.trackHoldType}
-        trackSteepness={settings.trackSteepness}
+        trackHoldType={effTrackHoldType}
+        trackSteepness={effTrackSteepness}
         onCommit={commitTags}
         onCancel={cancelTags}
       />
@@ -662,6 +730,8 @@ function ProjectMode({
     // Enforcement vain lisättäessä (+1) ja vain jos suunnitelma koskee tätä lajia.
     if (by > 0 && selected && plan != null && plan.discipline === selected.discipline) {
       const dispSys = selected.discipline === 'sport' ? 'french' : active.boulderDisplaySystem;
+      // Projektin yritykset perivät ulottuvuudet projektilta; ne huomioidaan vain jos
+      // suunnitelma seuraa kyseistä ulottuvuutta (evaluateLog ohittaa ne muuten).
       const verdict = evaluateLog(
         plan,
         efforts,
@@ -670,6 +740,8 @@ function ProjectMode({
         selected.gradeSystem,
         selected.gradeValue,
         by,
+        selected.holdType,
+        selected.steepness,
       );
       if (verdict !== 'ok') {
         const title = verdict === 'over' ? fi.plan.overTitle : fi.plan.offPlanTitle;
