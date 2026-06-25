@@ -12,8 +12,9 @@
  * Ulottuvuudet (dims): jos suunnitelma seuraa otetyyppiä ja/tai jyrkkyyttä, tavoitteet
  * voivat eritellä saman asteen ulottuvuusarvon mukaan. Tavoitteen ulottuvuusarvo on joko
  * tietty arvo TAI **null = "ei rajattu" (jokeri)**, joka osuu mihin tahansa logatun nousun
- * arvoon. Nousu lasketaan TARKIMMAN osuvan tavoitteen hyväksi (eniten ei-null-arvoja),
- * jolloin erilliset variantit eivät tuplaannu.
+ * arvoon. Nousu jaetaan osuviin tavoitteisiin kapasiteettitietoisella ahneella jaolla
+ * (tarkin ensin, tasapelissä eniten tilaa jäljellä ensin), joten erilliset variantit eivät
+ * tuplaannu MUTTA täysi tarkka variantti ei estä yhtä lailla osuvaa yleisempää tavoitetta.
  */
 
 import { type ClimbEffort } from './aggregate';
@@ -89,30 +90,30 @@ function specificity(t: PlanGradeTarget, dims: PlanDims): number {
   );
 }
 
-/** Tarkin osuva tavoite (eniten rajattuja ulottuvuuksia), tai null jos mikään ei osu. */
-function bestTarget(
+/**
+ * Kohteet, joihin nousu (grade, holdType, steepness) osuu — tarkin (eniten rajattuja
+ * ulottuvuuksia) ensin. Tavoitteen null-ulottuvuus = jokeri (osuu kaikkeen).
+ */
+function matchingTargets(
   targets: PlanGradeTarget[],
   grade: string,
   holdType: HoldType | null,
   steepness: Steepness | null,
   dims: PlanDims,
-): PlanGradeTarget | null {
-  let best: PlanGradeTarget | null = null;
-  let bestSpec = -1;
-  for (const t of targets) {
-    if (!targetMatches(t, grade, holdType, steepness, dims)) continue;
-    const s = specificity(t, dims);
-    if (s > bestSpec) {
-      best = t;
-      bestSpec = s;
-    }
-  }
-  return best;
+): PlanGradeTarget[] {
+  return targets
+    .filter((t) => targetMatches(t, grade, holdType, steepness, dims))
+    .sort((a, b) => specificity(b, dims) - specificity(a, dims));
 }
 
 /**
- * Nykyiset effort-määrät tavoitetta kohden. Jokainen effort lasketaan TARKIMMAN osuvan
- * tavoitteen hyväksi. Avain = tavoitteen tarkka dimsKey. Vain plan.discipline-lajin efforts.
+ * Nykyiset effort-määrät tavoitetta kohden, kapasiteettitietoisella ahneella jaolla.
+ * Jokainen effort sijoitetaan osuviin tavoitteisiin: rajatuimmat effortit (vähiten
+ * osumia) ensin, kukin täytetään tarkin ensin ja tasapelissä eniten tilaa jäljellä
+ * ensin. Näin täysi tarkka variantti EI estä yhtä yleistä — esim. "5 crimpy" kelpaa
+ * vaikka "5 vertical" olisi jo täynnä (sama nousu osuu molempiin samalla tarkkuudella).
+ * Ylimäärä kirjataan tarkimmalle osumalle (näkyy 'over'na). Avain = tavoitteen tarkka
+ * dimsKey. Vain plan.discipline-lajin efforts.
  */
 function currentByTarget(
   plan: SessionPlan,
@@ -121,17 +122,49 @@ function currentByTarget(
   targets: PlanGradeTarget[],
 ): Map<string, number> {
   const dims = planDims(plan);
-  const map = new Map<string, number>();
+  const keyOf = (t: PlanGradeTarget) => dimsKey(t.grade, t.holdType, t.steepness, dims);
+  const cur = new Map<string, number>();
+  for (const t of targets) cur.set(keyOf(t), 0);
+
+  // Esikäsittele: muunna aste + laske osuvat tavoitteet kullekin effortille.
+  const items: { count: number; matches: PlanGradeTarget[] }[] = [];
   for (const e of efforts) {
     if (e.discipline !== plan.discipline) continue;
     const grade = convert(e.gradeValue, e.gradeSystem, displaySystem);
     if (grade == null) continue;
-    const t = bestTarget(targets, grade, e.holdType, e.steepness, dims);
-    if (!t) continue;
-    const key = dimsKey(t.grade, t.holdType, t.steepness, dims);
-    map.set(key, (map.get(key) ?? 0) + e.count);
+    const matches = matchingTargets(targets, grade, e.holdType, e.steepness, dims);
+    if (matches.length === 0) continue;
+    items.push({ count: e.count, matches });
   }
-  return map;
+  // Rajatuimmat (vähiten osumia) ensin, jotta ne ehtivät varata ainoan kotinsa
+  // ennen kuin joustavammat (useaan osuvat) effortit kuluttavat tilan.
+  items.sort((a, b) => a.matches.length - b.matches.length);
+
+  for (const it of items) {
+    let remaining = it.count;
+    // Täytä tarkin ensin; tasapelissä eniten tilaa jäljellä ensin (kapasiteettitietoinen).
+    const order = [...it.matches].sort((a, b) => {
+      const ds = specificity(b, dims) - specificity(a, dims);
+      if (ds !== 0) return ds;
+      const ra = a.target - (cur.get(keyOf(a)) ?? 0);
+      const rb = b.target - (cur.get(keyOf(b)) ?? 0);
+      return rb - ra;
+    });
+    for (const t of order) {
+      if (remaining <= 0) break;
+      const k = keyOf(t);
+      const room = Math.max(0, t.target - (cur.get(k) ?? 0));
+      const put = Math.min(room, remaining);
+      cur.set(k, (cur.get(k) ?? 0) + put);
+      remaining -= put;
+    }
+    // Ylimäärä (kaikki osumat täynnä) tarkimmalle osumalle → näkyy 'over'na.
+    if (remaining > 0) {
+      const k = keyOf(it.matches[0]);
+      cur.set(k, (cur.get(k) ?? 0) + remaining);
+    }
+  }
+  return cur;
 }
 
 export interface PlanProgressRow {
@@ -190,7 +223,9 @@ export type LogVerdict = 'ok' | 'over' | 'offplan';
  * - eri laji kuin suunnitelma → 'ok' (suunnitelma ei koske tätä).
  * - aste ei muunnu näyttöasteikkoon (null) → 'ok' (ei voida verrata → ei varoiteta).
  * - mikään tavoite ei osu (aste + ulottuvuudet, null-jokeri huomioiden) → 'offplan'.
- * - muuten tarkimman osuvan tavoitteen current + addCount > target → 'over', muuten 'ok'.
+ * - muuten: mahtuuko addCount osuvien tavoitteiden YHTEENLASKETTUUN jäljellä olevaan
+ *   tilaan? Jos ei → 'over', muuten 'ok'. Näin täysi tarkka variantti ei estä kirjausta,
+ *   jos jokin yhtä lailla osuva (yleisempi) tavoite ottaa nousun vielä vastaan.
  *
  * holdType/steepness ovat logattavan nousun arvot; niitä käytetään vain jos plan.dims
  * kyseisen ulottuvuuden ottaa huomioon.
@@ -212,10 +247,14 @@ export function evaluateLog(
 
   const dims = planDims(plan);
   const targets = [...planTargetsByGrade(plan, displaySystem).values()];
-  const t = bestTarget(targets, grade, holdType, steepness, dims);
-  if (!t) return 'offplan';
+  const matches = matchingTargets(targets, grade, holdType, steepness, dims);
+  if (matches.length === 0) return 'offplan';
 
-  const key = dimsKey(t.grade, t.holdType, t.steepness, dims);
-  const current = currentByTarget(plan, efforts, displaySystem, targets).get(key) ?? 0;
-  return current + addCount > t.target ? 'over' : 'ok';
+  const cur = currentByTarget(plan, efforts, displaySystem, targets);
+  let remainingCapacity = 0;
+  for (const t of matches) {
+    const key = dimsKey(t.grade, t.holdType, t.steepness, dims);
+    remainingCapacity += Math.max(0, t.target - (cur.get(key) ?? 0));
+  }
+  return addCount > remainingCapacity ? 'over' : 'ok';
 }

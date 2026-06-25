@@ -242,16 +242,84 @@ describe('evaluateLog with null = wildcard steepness', () => {
     expect(rows.find((r) => r.holdType === 'crimpy' && r.steepness === null)?.current).toBe(1);
   });
 
-  it('over fires against the specific variant once full, wildcard still ok', () => {
-    const filled = efforts({
+  it('a slab log still fits while the wildcard variant has room (no premature over)', () => {
+    // slab target full (5/5) but wildcard (crimpy, any steepness) still 0/3 -> a further
+    // crimpy slab is a crimpy-any, so it counts there: ok.
+    const slabFull = efforts({
       sends: [
         { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6B', count: 5, holdType: 'crimpy', steepness: 'slab' },
       ],
     });
-    // slab target full (5/5) -> +1 slab over
-    expect(evaluateLog(wildcardPlan, filled, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'slab')).toBe('over');
-    // overhang routes to the wildcard target (current 0/3) -> ok
-    expect(evaluateLog(wildcardPlan, filled, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'overhang')).toBe('ok');
+    expect(evaluateLog(wildcardPlan, slabFull, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'slab')).toBe('ok');
+    expect(evaluateLog(wildcardPlan, slabFull, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'overhang')).toBe('ok');
+  });
+
+  it('over fires only once every matching variant is full', () => {
+    // 5 crimpy slab (fills slab 5/5) + 3 crimpy overhang (fills wildcard 3/3) -> both full.
+    const allFull = efforts({
+      sends: [
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6B', count: 5, holdType: 'crimpy', steepness: 'slab' },
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6B', count: 3, holdType: 'crimpy', steepness: 'overhang' },
+      ],
+    });
+    // a slab log matches both (slab + wildcard) — both full -> over
+    expect(evaluateLog(wildcardPlan, allFull, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'slab')).toBe('over');
+    // an overhang log matches only the wildcard, which is full -> over
+    expect(evaluateLog(wildcardPlan, allFull, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'overhang')).toBe('over');
+  });
+});
+
+/* ----- Ristikkäiset jokerit: eri ulottuvuudella rajatut tavoitteet (käyttäjän bugi) ----- */
+
+// "6A vertical" (mikä tahansa ote, slab) JA "6A crimpy" (crimpy, mikä tahansa jyrkkyys).
+// Sama nousu "6A crimpy vertical" osuu MOLEMPIIN samalla tarkkuudella (1 rajattu ulottuvuus).
+const crossPlan: SessionPlan = {
+  discipline: 'boulder',
+  label: 'Cross',
+  sourceSessionId: null,
+  modifier: {},
+  dims: bothDims,
+  targets: [
+    { gradeSystem: 'font', gradeValue: '6A', target: 5, holdType: null, steepness: 'slab' },
+    { gradeSystem: 'font', gradeValue: '6A', target: 4, holdType: 'crimpy', steepness: null },
+  ],
+};
+
+describe('cross-dimension wildcards (equal specificity)', () => {
+  it('a crimpy-vertical log fits the open "crimpy" target even when "vertical" is full', () => {
+    // 5 logged as (otetyyppi määrittelemätön, slab) -> täyttää "6A vertical" 5/5.
+    const verticalDone = efforts({
+      sends: [
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6A', count: 5, holdType: null, steepness: 'slab' },
+      ],
+    });
+    // "6A crimpy vertical": osuu sekä täyteen "6A vertical"iin että avoimeen "6A crimpy"iin -> ok.
+    expect(evaluateLog(crossPlan, verticalDone, 'boulder', 'font', 'font', '6A', 1, 'crimpy', 'slab')).toBe('ok');
+  });
+
+  it('counts the crimpy-vertical log toward the crimpy target in progress', () => {
+    const e = efforts({
+      sends: [
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6A', count: 5, holdType: null, steepness: 'slab' },
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6A', count: 1, holdType: 'crimpy', steepness: 'slab' },
+      ],
+    });
+    const rows = planProgress(crossPlan, e, 'font');
+    // "6A vertical" pysyy 5/5; crimpy-vertical menee avoimeen "6A crimpy" -> 1/4.
+    expect(rows.find((r) => r.holdType === null && r.steepness === 'slab')?.current).toBe(5);
+    expect(rows.find((r) => r.holdType === 'crimpy' && r.steepness === null)?.current).toBe(1);
+  });
+
+  it('only flags over once BOTH cross targets are full', () => {
+    // täytä "6A vertical" 5 (määrittelemätön ote, slab) + "6A crimpy" 4 (crimpy, overhang
+    // -> osuu vain crimpyyn). Sitten crimpy-slab osuu molempiin, molemmat täynnä -> over.
+    const bothFull = efforts({
+      sends: [
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6A', count: 5, holdType: null, steepness: 'slab' },
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6A', count: 4, holdType: 'crimpy', steepness: 'overhang' },
+      ],
+    });
+    expect(evaluateLog(crossPlan, bothFull, 'boulder', 'font', 'font', '6A', 1, 'crimpy', 'slab')).toBe('over');
   });
 });
 
