@@ -16,6 +16,7 @@ import {
   sessions,
   sessionThemes,
   supplementalEntries,
+  trainingPlans,
 } from '@/db/schema';
 
 export const BACKUP_APP_ID = 'kiipeily-treeni-appi';
@@ -23,10 +24,11 @@ export const BACKUP_APP_ID = 'kiipeily-treeni-appi';
 // v3: lisätty hold_type-sarakkeet (send_logs/attempt_logs/projects).
 // v4: lisätty session_themes-taulu sekä sessions.theme/environment-sarakkeet.
 // v5: lisätty sessions.plan-sarake (guided sessions; kulkee sessions-rivien mukana).
+// v6: lisätty training_plans-taulu (tallennetut suunnitelmamallit; oma avaimensa).
 // Sarakkeet kulkevat olemassa olevien taulujen mukana; uudet taulut omana avaimenaan.
 // Vanhat tiedostot tuodaan edelleen (puuttuvat kentät jäävät tyhjiksi/null, ja
-// puuttuva session_themes -avain jättää nykyiset teemat ennalleen).
-export const BACKUP_VERSION = 5;
+// puuttuva session_themes-/training_plans-avain jättää nykyiset rivit ennalleen).
+export const BACKUP_VERSION = 6;
 
 interface BackupFile {
   app: string;
@@ -40,6 +42,7 @@ interface BackupFile {
     projectAttempts: unknown[];
     supplementalEntries: unknown[];
     sessionThemes?: unknown[];
+    trainingPlans?: unknown[];
     appSettings: unknown[];
   };
 }
@@ -53,6 +56,7 @@ function collectData(): BackupFile['data'] {
     projectAttempts: db.select().from(projectAttempts).all(),
     supplementalEntries: db.select().from(supplementalEntries).all(),
     sessionThemes: db.select().from(sessionThemes).all(),
+    trainingPlans: db.select().from(trainingPlans).all(),
     appSettings: db.select().from(appSettings).all(),
   };
 }
@@ -129,6 +133,13 @@ export function restoreBackup(backup: BackupFile): void {
     if (d.sessionThemes) {
       db.delete(sessionThemes).run();
       if (d.sessionThemes.length) db.insert(sessionThemes).values(d.sessionThemes as any).run();
+    }
+
+    // training_plans vain jos varmuuskopiossa on avain (vanhat tiedostot jättävät
+    // nykyiset mallit ennalleen).
+    if (d.trainingPlans) {
+      db.delete(trainingPlans).run();
+      if (d.trainingPlans.length) db.insert(trainingPlans).values(d.trainingPlans as any).run();
     }
 
     if (d.appSettings.length) {

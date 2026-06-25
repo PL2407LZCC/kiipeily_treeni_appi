@@ -6,3 +6,4 @@ export * as Attempts from './attempts';
 export * as Supplemental from './supplemental';
 export * as Settings from './settings';
 export * as Themes from './themes';
+export * as Plans from './plans';
