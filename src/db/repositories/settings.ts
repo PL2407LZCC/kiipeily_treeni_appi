@@ -8,12 +8,14 @@ export interface AppSettings {
   boulderDefaultSystem: GradeSystem; // 'font' | 'v'
   showSecondaryGrade: boolean;
   trackHoldType: boolean;
+  trackSteepness: boolean;
 }
 
 const DEFAULTS: AppSettings = {
   boulderDefaultSystem: 'font',
   showSecondaryGrade: true,
   trackHoldType: false,
+  trackSteepness: false,
 };
 
 export function getSettings(): AppSettings {
@@ -23,6 +25,7 @@ export function getSettings(): AppSettings {
     boulderDefaultSystem: row.boulderDefaultSystem as GradeSystem,
     showSecondaryGrade: row.showSecondaryGrade,
     trackHoldType: row.trackHoldType,
+    trackSteepness: row.trackSteepness,
   };
 }
 

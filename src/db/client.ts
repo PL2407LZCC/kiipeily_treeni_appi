@@ -42,6 +42,10 @@ function runMigrations(): void {
   ensureColumn('attempt_logs', 'hold_type', 'hold_type TEXT');
   ensureColumn('projects', 'hold_type', 'hold_type TEXT');
   ensureColumn('app_settings', 'track_hold_type', 'track_hold_type INTEGER NOT NULL DEFAULT 0');
+  ensureColumn('send_logs', 'steepness', 'steepness TEXT');
+  ensureColumn('attempt_logs', 'steepness', 'steepness TEXT');
+  ensureColumn('projects', 'steepness', 'steepness TEXT');
+  ensureColumn('app_settings', 'track_steepness', 'track_steepness INTEGER NOT NULL DEFAULT 0');
   ensureColumn('sessions', 'theme', 'theme TEXT');
   ensureColumn('sessions', 'environment', 'environment TEXT');
   ensureColumn('sessions', 'plan', 'plan TEXT');

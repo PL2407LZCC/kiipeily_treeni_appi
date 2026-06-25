@@ -7,10 +7,16 @@ import { SessionCompare } from '@/components/SessionCompare';
 import { Spacing } from '@/constants/theme';
 import { AttemptLogs, Attempts, Projects, Sends, Sessions, Supplemental } from '@/db/repositories';
 import { formatDateFi, formatTimeFi } from '@/domain/dates';
-import type { Discipline, HoldType, SessionEnvironment, SupplementalKind } from '@/domain/types';
+import type {
+  Discipline,
+  HoldType,
+  SessionEnvironment,
+  Steepness,
+  SupplementalKind,
+} from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
-import { fi, holdTypeLabel } from '@/i18n/fi';
+import { fi, holdTypeLabel, steepnessLabel } from '@/i18n/fi';
 import { bumpData } from '@/state/dataVersion';
 import { useSettings } from '@/state/settings';
 
@@ -58,6 +64,7 @@ export default function SessionDetailScreen() {
   };
 
   const trackHoldType = useSettings((s) => s.trackHoldType);
+  const trackSteepness = useSettings((s) => s.trackSteepness);
 
   /** Avaa otetyypin valinta-alert ja tallenna valittu arvo. */
   const editHoldType = (apply: (holdType: HoldType | null) => void) => {
@@ -65,6 +72,16 @@ export default function SessionDetailScreen() {
       { text: fi.holdType.slopy, onPress: () => { apply('slopy'); bumpData(); } },
       { text: fi.holdType.crimpy, onPress: () => { apply('crimpy'); bumpData(); } },
       { text: fi.holdType.undefined, onPress: () => { apply(null); bumpData(); } },
+      { text: fi.common.cancel, style: 'cancel' },
+    ]);
+  };
+
+  /** Avaa jyrkkyyden valinta-alert ja tallenna valittu arvo. */
+  const editSteepness = (apply: (steepness: Steepness | null) => void) => {
+    Alert.alert(fi.steepness.prompt, undefined, [
+      { text: fi.steepness.slab, onPress: () => { apply('slab'); bumpData(); } },
+      { text: fi.steepness.overhang, onPress: () => { apply('overhang'); bumpData(); } },
+      { text: fi.steepness.undefined, onPress: () => { apply(null); bumpData(); } },
       { text: fi.common.cancel, style: 'cancel' },
     ]);
   };
@@ -117,11 +134,16 @@ export default function SessionDetailScreen() {
             <Row
               key={`send-${s.id}`}
               title={`${s.count > 1 ? `${s.count}× ` : ''}${s.gradeValue}${s.flash ? ' ⚡' : ''}`}
-              subtitle={`${fi.discipline[s.discipline as Discipline]}${holdTypeLabel(s.holdType) ? ` · ${holdTypeLabel(s.holdType)}` : ''}`}
+              subtitle={`${fi.discipline[s.discipline as Discipline]}${holdTypeLabel(s.holdType) ? ` · ${holdTypeLabel(s.holdType)}` : ''}${steepnessLabel(s.steepness) ? ` · ${steepnessLabel(s.steepness)}` : ''}`}
               onDelete={() => deleteSend(s.id)}
               onEdit={
                 trackHoldType
                   ? () => editHoldType((h) => Sends.updateSend(s.id, { holdType: h }))
+                  : undefined
+              }
+              onEditSteepness={
+                trackSteepness
+                  ? () => editSteepness((st) => Sends.updateSend(s.id, { steepness: st }))
                   : undefined
               }
             />
@@ -141,11 +163,16 @@ export default function SessionDetailScreen() {
             <Row
               key={`loose-${a.id}`}
               title={`${a.count > 1 ? `${a.count}× ` : ''}${a.gradeValue}`}
-              subtitle={`${fi.discipline[a.discipline as Discipline]}${holdTypeLabel(a.holdType) ? ` · ${holdTypeLabel(a.holdType)}` : ''}`}
+              subtitle={`${fi.discipline[a.discipline as Discipline]}${holdTypeLabel(a.holdType) ? ` · ${holdTypeLabel(a.holdType)}` : ''}${steepnessLabel(a.steepness) ? ` · ${steepnessLabel(a.steepness)}` : ''}`}
               onDelete={() => deleteLooseAttempt(a.id)}
               onEdit={
                 trackHoldType
                   ? () => editHoldType((h) => AttemptLogs.updateAttemptLog(a.id, { holdType: h }))
+                  : undefined
+              }
+              onEditSteepness={
+                trackSteepness
+                  ? () => editSteepness((st) => AttemptLogs.updateAttemptLog(a.id, { steepness: st }))
                   : undefined
               }
             />
@@ -165,11 +192,16 @@ export default function SessionDetailScreen() {
             <Row
               key={`att-${a.id}`}
               title={`${a.gradeValue}${a.projectName ? ` · ${a.projectName}` : ''}`}
-              subtitle={`${a.attemptCount} ${fi.timeline.attempts}${a.sent ? ' · Sent ✅' : ''}${holdTypeLabel(a.holdType) ? ` · ${holdTypeLabel(a.holdType)}` : ''}`}
+              subtitle={`${a.attemptCount} ${fi.timeline.attempts}${a.sent ? ' · Sent ✅' : ''}${holdTypeLabel(a.holdType) ? ` · ${holdTypeLabel(a.holdType)}` : ''}${steepnessLabel(a.steepness) ? ` · ${steepnessLabel(a.steepness)}` : ''}`}
               onDelete={() => deleteAttempt(a.id)}
               onEdit={
                 trackHoldType
                   ? () => editHoldType((h) => Projects.updateProject(a.projectId, { holdType: h }))
+                  : undefined
+              }
+              onEditSteepness={
+                trackSteepness
+                  ? () => editSteepness((st) => Projects.updateProject(a.projectId, { steepness: st }))
                   : undefined
               }
             />
@@ -222,12 +254,15 @@ function Row({
   subtitle,
   onDelete,
   onEdit,
+  onEditSteepness,
 }: {
   title: string;
   subtitle: string;
   onDelete: () => void;
-  /** Jos annettu, tekstialueen napautus muokkaa (esim. otetyyppi). */
+  /** Jos annettu, tekstialueen napautus muokkaa otetyyppiä. */
   onEdit?: () => void;
+  /** Jos annettu, näytä erillinen jyrkkyyden muokkauspainike. */
+  onEditSteepness?: () => void;
 }) {
   const theme = useTheme();
   return (
@@ -238,6 +273,11 @@ function Row({
           <Text style={[styles.rowSub, { color: theme.textSecondary }]}>{subtitle}</Text>
         ) : null}
       </Pressable>
+      {onEditSteepness ? (
+        <Pressable onPress={onEditSteepness} hitSlop={8} style={styles.trash}>
+          <Ionicons name="trending-up-outline" size={20} color={theme.textSecondary} />
+        </Pressable>
+      ) : null}
       <Pressable onPress={onDelete} hitSlop={8} style={styles.trash}>
         <Ionicons name="trash-outline" size={20} color={theme.textSecondary} />
       </Pressable>

@@ -11,8 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ClimbTagPrompt } from '@/components/ClimbTagPrompt';
 import { GradePicker } from '@/components/GradePicker';
-import { HoldTypePrompt } from '@/components/HoldTypePrompt';
 import { NewProjectModal } from '@/components/NewProjectModal';
 import { PlanBuilderModal } from '@/components/PlanBuilderModal';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -24,10 +24,16 @@ import { Spacing } from '@/constants/theme';
 import { AttemptLogs, Attempts, Projects, Sends, Sessions, Themes } from '@/db/repositories';
 import { daysAgoIso, formatDateFi, formatTimeFi } from '@/domain/dates';
 import { evaluateLog, planProgress, type LogVerdict } from '@/domain/planProgress';
-import type { Discipline, HoldType, SessionEnvironment, SessionPlan } from '@/domain/types';
+import type {
+  Discipline,
+  HoldType,
+  SessionEnvironment,
+  SessionPlan,
+  Steepness,
+} from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
-import { fi, holdTypeLabel } from '@/i18n/fi';
+import { fi, holdTypeLabel, steepnessLabel } from '@/i18n/fi';
 import { successFeedback, tapFeedback } from '@/lib/haptics';
 import { useActiveSession } from '@/state/activeSession';
 import { bumpData } from '@/state/dataVersion';
@@ -283,6 +289,7 @@ export default function HomeScreen() {
         boulderSystem={active.boulderDisplaySystem}
         showSecondary={settings.showSecondaryGrade}
         trackHoldType={settings.trackHoldType}
+        trackSteepness={settings.trackSteepness}
       />
       <SupplementalModal
         visible={supplementalModal}
@@ -323,43 +330,48 @@ function SendMode({ sessionId }: { sessionId: number }) {
   const planActive = plan != null && plan.discipline === active.discipline;
   const progressRows = planActive ? planProgress(plan, efforts, system) : [];
 
-  // Otetyypin valinta kirjauksen jälkeen (vain jos asetus päällä).
-  const [pendingHoldType, setPendingHoldType] = useState<{
+  // Kirjataanko tageja (otetyyppi ja/tai jyrkkyys)? Jos kyllä, insert lykätään
+  // ClimbTagPromptin ratkaisuun asti — tämä korjaa tuplanapautusbugin.
+  const tagsTracked = settings.trackHoldType || settings.trackSteepness;
+
+  // Lykätty kirjaus: odottaa tagien valintaa. Estää myös toisen kirjauksen (early return).
+  const [pending, setPending] = useState<{
     kind: 'send' | 'attempt';
-    id: number;
+    grade: string;
+    quantity: number;
   } | null>(null);
 
-  // Varsinaiset insert-rungot (kutsutaan vasta kun enforcement on läpäisty).
-  const doLogSend = (grade: string) => {
+  // Varsinaiset insert-rungot: kirjaavat tagit suoraan yhdellä insertillä (ei jälkipäivitystä).
+  const doLogSend = (grade: string, quantity: number, holdType: HoldType | null, steepness: Steepness | null) => {
     const id = Sends.addSend({
       sessionId,
       discipline: active.discipline,
       gradeSystem: system,
       gradeValue: grade,
-      count: active.quantity,
+      count: quantity,
       flash: active.flash,
+      holdType,
+      steepness,
     });
     active.setLastSendId(id);
-    active.setQuantity(1);
     if (active.flash) active.toggleFlash();
     tapFeedback();
     bumpData();
-    if (settings.trackHoldType) setPendingHoldType({ kind: 'send', id });
   };
 
-  const doLogAttempt = (grade: string) => {
+  const doLogAttempt = (grade: string, quantity: number, holdType: HoldType | null, steepness: Steepness | null) => {
     const id = AttemptLogs.addAttemptLog({
       sessionId,
       discipline: active.discipline,
       gradeSystem: system,
       gradeValue: grade,
-      count: active.quantity,
+      count: quantity,
+      holdType,
+      steepness,
     });
     active.setLastAttemptId(id);
-    active.setQuantity(1);
     successFeedback(); // erottuva palaute: pitkä painallus rekisteröityi yritykseksi
     bumpData();
-    if (settings.trackHoldType) setPendingHoldType({ kind: 'attempt', id });
   };
 
   // Pehmeä enforcement: arvioi ENNEN insertointia; varoita + salli ohitus.
@@ -377,31 +389,50 @@ function SendMode({ sessionId }: { sessionId: number }) {
   };
 
   const logSend = (grade: string) => {
+    if (pending != null) return; // prompti auki → estä toinen kirjaus
     const verdict = planActive
       ? evaluateLog(plan, efforts, active.discipline, system, system, grade, active.quantity)
       : 'ok';
-    confirmThenLog(verdict, () => doLogSend(grade));
+    confirmThenLog(verdict, () => {
+      if (tagsTracked) {
+        // Lykkää insert; nollaa määrä heti, jotta stepper tyhjenee.
+        setPending({ kind: 'send', grade, quantity: active.quantity });
+        active.setQuantity(1);
+      } else {
+        doLogSend(grade, active.quantity, null, null);
+        active.setQuantity(1);
+      }
+    });
   };
 
   const logAttempt = (grade: string) => {
+    if (pending != null) return;
     const verdict = planActive
       ? evaluateLog(plan, efforts, active.discipline, system, system, grade, active.quantity)
       : 'ok';
-    confirmThenLog(verdict, () => doLogAttempt(grade));
+    confirmThenLog(verdict, () => {
+      if (tagsTracked) {
+        setPending({ kind: 'attempt', grade, quantity: active.quantity });
+        active.setQuantity(1);
+      } else {
+        doLogAttempt(grade, active.quantity, null, null);
+        active.setQuantity(1);
+      }
+    });
   };
 
-  const chooseHoldType = (holdType: HoldType | null) => {
-    if (!pendingHoldType) return;
-    if (holdType != null) {
-      if (pendingHoldType.kind === 'send') {
-        Sends.updateSend(pendingHoldType.id, { holdType });
-      } else {
-        AttemptLogs.updateAttemptLog(pendingHoldType.id, { holdType });
-      }
-      bumpData();
+  // ClimbTagPrompt ratkesi: kirjaa lykätty rivi valituilla tageilla.
+  const commitTags = (holdType: HoldType | null, steepness: Steepness | null) => {
+    if (!pending) return;
+    if (pending.kind === 'send') {
+      doLogSend(pending.grade, pending.quantity, holdType, steepness);
+    } else {
+      doLogAttempt(pending.grade, pending.quantity, holdType, steepness);
     }
-    setPendingHoldType(null);
+    setPending(null);
   };
+
+  const cancelTags = () => setPending(null); // ei kirjata mitään
 
   const undo = () => {
     if (active.lastSendId == null) return;
@@ -524,6 +555,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
             <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
               {fi.discipline[s.discipline as Discipline]}
               {holdTypeLabel(s.holdType) ? ` · ${holdTypeLabel(s.holdType)}` : ''}
+              {steepnessLabel(s.steepness) ? ` · ${steepnessLabel(s.steepness)}` : ''}
             </Text>
             <Pressable onPress={() => remove(s.id)} hitSlop={8} style={styles.trash}>
               <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
@@ -557,6 +589,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
               <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
                 {fi.discipline[a.discipline as Discipline]}
                 {holdTypeLabel(a.holdType) ? ` · ${holdTypeLabel(a.holdType)}` : ''}
+                {steepnessLabel(a.steepness) ? ` · ${steepnessLabel(a.steepness)}` : ''}
               </Text>
               <Pressable onPress={() => removeAttempt(a.id)} hitSlop={8} style={styles.trash}>
                 <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
@@ -566,7 +599,13 @@ function SendMode({ sessionId }: { sessionId: number }) {
         </>
       ) : null}
 
-      <HoldTypePrompt visible={pendingHoldType != null} onChoose={chooseHoldType} />
+      <ClimbTagPrompt
+        visible={pending != null}
+        trackHoldType={settings.trackHoldType}
+        trackSteepness={settings.trackSteepness}
+        onCommit={commitTags}
+        onCancel={cancelTags}
+      />
     </View>
   );
 }
