@@ -1,7 +1,7 @@
 import { desc, eq } from 'drizzle-orm';
 
 import { nowIso } from '@/domain/dates';
-import type { Discipline, GradeSystem, HoldType } from '@/domain/types';
+import type { Discipline, GradeSystem, HoldType, Steepness } from '@/domain/types';
 import { db } from '../client';
 import { sendLogs } from '../schema';
 
@@ -13,6 +13,7 @@ export interface NewSend {
   count?: number;
   flash?: boolean;
   holdType?: HoldType | null;
+  steepness?: Steepness | null;
   notes?: string | null;
 }
 
@@ -36,6 +37,7 @@ export function addSend(send: NewSend): number {
       count: send.count ?? 1,
       flash: send.flash ?? false,
       holdType: send.holdType ?? null,
+      steepness: send.steepness ?? null,
       notes: send.notes ?? null,
       createdAt: nowIso(),
     })
@@ -50,6 +52,7 @@ export function updateSend(
     flash?: boolean;
     gradeValue?: string;
     holdType?: HoldType | null;
+    steepness?: Steepness | null;
     notes?: string | null;
   },
 ): void {

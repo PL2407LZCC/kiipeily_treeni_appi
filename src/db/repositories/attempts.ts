@@ -92,6 +92,7 @@ export function attemptsForSession(sessionId: number) {
       gradeSystem: projects.gradeSystem,
       gradeValue: projects.gradeValue,
       holdType: projects.holdType,
+      steepness: projects.steepness,
       status: projects.status,
     })
     .from(projectAttempts)

@@ -12,17 +12,20 @@ interface SettingsState {
   boulderDefaultSystem: GradeSystem; // 'font' | 'v'
   showSecondaryGrade: boolean;
   trackHoldType: boolean;
+  trackSteepness: boolean;
   loaded: boolean;
   load: () => void;
   setBoulderDefaultSystem: (s: GradeSystem) => void;
   setShowSecondaryGrade: (v: boolean) => void;
   setTrackHoldType: (v: boolean) => void;
+  setTrackSteepness: (v: boolean) => void;
 }
 
 export const useSettings = create<SettingsState>((set) => ({
   boulderDefaultSystem: 'font',
   showSecondaryGrade: true,
   trackHoldType: false,
+  trackSteepness: false,
   loaded: false,
 
   load: () => {
@@ -40,5 +43,9 @@ export const useSettings = create<SettingsState>((set) => ({
   setTrackHoldType: (trackHoldType) => {
     Settings.saveSettings({ trackHoldType });
     set({ trackHoldType });
+  },
+  setTrackSteepness: (trackSteepness) => {
+    Settings.saveSettings({ trackSteepness });
+    set({ trackSteepness });
   },
 }));

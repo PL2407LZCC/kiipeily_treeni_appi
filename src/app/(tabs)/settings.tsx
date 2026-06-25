@@ -105,6 +105,18 @@ export default function SettingsScreen() {
             onValueChange={(v) => settings.setTrackHoldType(v)}
           />
         </View>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.label, { color: theme.text }]}>{fi.settings.trackSteepness}</Text>
+            <Text style={[styles.hint, { color: theme.textSecondary }]}>
+              {fi.settings.trackSteepnessHint}
+            </Text>
+          </View>
+          <Switch
+            value={settings.trackSteepness}
+            onValueChange={(v) => settings.setTrackSteepness(v)}
+          />
+        </View>
 
         {/* Session teemat */}
         <Text style={[styles.section, { color: theme.textSecondary, marginTop: Spacing.four }]}>

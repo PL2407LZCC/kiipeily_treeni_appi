@@ -4,7 +4,7 @@
  * flash, redpoint, beta.
  */
 
-import type { HoldType } from '@/domain/types';
+import type { HoldType, Steepness } from '@/domain/types';
 
 export const fi = {
   tabs: {
@@ -40,6 +40,12 @@ export const fi = {
     slopy: 'Slopy',
     crimpy: 'Crimpy',
     undefined: 'Ei määritelty',
+  },
+  steepness: {
+    prompt: 'Jyrkkyys?',
+    slab: 'Vertical/Slab',
+    overhang: 'Overhang/Roof',
+    undefined: 'Ei valittu',
   },
   environment: {
     indoor: 'Sisä',
@@ -230,6 +236,8 @@ export const fi = {
     showSecondary: 'Näytä toissijainen aste (Font ↔ V)',
     trackHoldType: 'Kysy otteen tyyppi (Slopy/Crimpy)',
     trackHoldTypeHint: 'Kirjauksen jälkeen valitse otetyyppi: Slopy, Crimpy tai Ei määritelty.',
+    trackSteepness: 'Kysy jyrkkyys (Vertical/Slab tai Overhang/Roof)',
+    trackSteepnessHint: 'Kirjauksen jälkeen pyyhkäise ylös = Vertical/Slab, alas = Overhang/Roof tai jätä määrittelemättä.',
     themes: 'Session teemat',
     themesHint: 'Valittavissa sessiota aloitettaessa.',
     addThemePlaceholder: 'Uuden teeman nimi',
@@ -256,4 +264,10 @@ export type Strings = typeof fi;
 export function holdTypeLabel(holdType: HoldType | null | undefined): string | null {
   if (!holdType) return null;
   return fi.holdType[holdType];
+}
+
+/** Jyrkkyyden näyttöteksti; null/undefined → ei näytettävää tekstiä. */
+export function steepnessLabel(steepness: Steepness | null | undefined): string | null {
+  if (!steepness) return null;
+  return fi.steepness[steepness];
 }

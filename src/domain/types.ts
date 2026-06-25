@@ -14,6 +14,9 @@ export type SupplementalKind = 'strength' | 'endurance' | 'other';
 /** Otteen/nousun tyyppi (valinnainen ominaisuus). null = määrittelemätön. */
 export type HoldType = 'crimpy' | 'slopy';
 
+/** Seinän jyrkkyys (valinnainen ominaisuus). null = määrittelemätön. */
+export type Steepness = 'slab' | 'overhang';
+
 /** Session ympäristö (valinnainen): sisä- vai ulkokiipeily. */
 export type SessionEnvironment = 'indoor' | 'outdoor';
 
@@ -44,6 +47,7 @@ export interface SendLog {
   count: number;
   flash: boolean;
   holdType: HoldType | null;
+  steepness: Steepness | null;
   notes: string | null;
   createdAt: string;
 }
@@ -57,6 +61,7 @@ export interface AttemptLog {
   gradeValue: string;
   count: number;
   holdType: HoldType | null;
+  steepness: Steepness | null;
   notes: string | null;
   createdAt: string;
 }
@@ -70,6 +75,7 @@ export interface Project {
   status: ProjectStatus;
   location: string | null;
   holdType: HoldType | null;
+  steepness: Steepness | null;
   notes: string | null;
   createdAt: string;
   sentAt: string | null;

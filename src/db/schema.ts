@@ -14,6 +14,7 @@ import type {
   HoldType,
   ProjectStatus,
   SessionEnvironment,
+  Steepness,
   SupplementalKind,
 } from '@/domain/types';
 
@@ -49,6 +50,7 @@ export const sendLogs = sqliteTable(
     count: integer('count').notNull().default(1),
     flash: integer('flash', { mode: 'boolean' }).notNull().default(false),
     holdType: text('hold_type').$type<HoldType>(), // crimpy | slopy | null
+    steepness: text('steepness').$type<Steepness>(), // slab | overhang | null
     notes: text('notes'),
     createdAt: text('created_at').notNull(),
   },
@@ -72,6 +74,7 @@ export const attemptLogs = sqliteTable(
     gradeValue: text('grade_value').notNull(),
     count: integer('count').notNull().default(1),
     holdType: text('hold_type').$type<HoldType>(), // crimpy | slopy | null
+    steepness: text('steepness').$type<Steepness>(), // slab | overhang | null
     notes: text('notes'),
     createdAt: text('created_at').notNull(),
   },
@@ -87,6 +90,7 @@ export const projects = sqliteTable('projects', {
   status: text('status').$type<ProjectStatus>().notNull().default('active'), // active | sent | abandoned | archived
   location: text('location'),
   holdType: text('hold_type').$type<HoldType>(), // crimpy | slopy | null
+  steepness: text('steepness').$type<Steepness>(), // slab | overhang | null
   notes: text('notes'),
   createdAt: text('created_at').notNull(),
   sentAt: text('sent_at'),
@@ -155,6 +159,9 @@ export const appSettings = sqliteTable('app_settings', {
   trackHoldType: integer('track_hold_type', { mode: 'boolean' })
     .notNull()
     .default(false),
+  trackSteepness: integer('track_steepness', { mode: 'boolean' })
+    .notNull()
+    .default(false),
 });
 
 /** DDL kaikkien taulujen luomiseen sovelluksen käynnistyessä (idempotentti). */
@@ -184,6 +191,7 @@ export const CREATE_TABLES_SQL = `
     count INTEGER NOT NULL DEFAULT 1,
     flash INTEGER NOT NULL DEFAULT 0,
     hold_type TEXT,
+    steepness TEXT,
     notes TEXT,
     created_at TEXT NOT NULL
   );
@@ -196,6 +204,7 @@ export const CREATE_TABLES_SQL = `
     grade_value TEXT NOT NULL,
     count INTEGER NOT NULL DEFAULT 1,
     hold_type TEXT,
+    steepness TEXT,
     notes TEXT,
     created_at TEXT NOT NULL
   );
@@ -209,6 +218,7 @@ export const CREATE_TABLES_SQL = `
     status TEXT NOT NULL DEFAULT 'active',
     location TEXT,
     hold_type TEXT,
+    steepness TEXT,
     notes TEXT,
     created_at TEXT NOT NULL,
     sent_at TEXT
@@ -249,7 +259,8 @@ export const CREATE_TABLES_SQL = `
     id INTEGER PRIMARY KEY,
     boulder_default_system TEXT NOT NULL DEFAULT 'font',
     show_secondary_grade INTEGER NOT NULL DEFAULT 1,
-    track_hold_type INTEGER NOT NULL DEFAULT 0
+    track_hold_type INTEGER NOT NULL DEFAULT 0,
+    track_steepness INTEGER NOT NULL DEFAULT 0
   );
   INSERT OR IGNORE INTO app_settings (id, boulder_default_system, show_secondary_grade)
     VALUES (1, 'font', 1);

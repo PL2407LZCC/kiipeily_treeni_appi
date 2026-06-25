@@ -4,7 +4,7 @@ import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import { Spacing } from '@/constants/theme';
 import { Projects } from '@/db/repositories';
 import { defaultSystemForDiscipline } from '@/domain/grades';
-import type { Discipline, GradeSystem, HoldType } from '@/domain/types';
+import type { Discipline, GradeSystem, HoldType, Steepness } from '@/domain/types';
 import { useTheme } from '@/hooks/use-theme';
 import { fi } from '@/i18n/fi';
 import { bumpData } from '@/state/dataVersion';
@@ -19,6 +19,7 @@ interface NewProjectModalProps {
   boulderSystem: GradeSystem; // font | v
   showSecondary: boolean;
   trackHoldType: boolean;
+  trackSteepness: boolean;
 }
 
 export function NewProjectModal({
@@ -28,6 +29,7 @@ export function NewProjectModal({
   boulderSystem,
   showSecondary,
   trackHoldType,
+  trackSteepness,
 }: NewProjectModalProps) {
   const theme = useTheme();
   const [discipline, setDiscipline] = useState<Discipline>('boulder');
@@ -35,6 +37,7 @@ export function NewProjectModal({
   const [location, setLocation] = useState('');
   const [grade, setGrade] = useState<string | null>(null);
   const [holdType, setHoldType] = useState<HoldType | null>(null);
+  const [steepness, setSteepness] = useState<Steepness | null>(null);
 
   const system = defaultSystemForDiscipline(discipline, boulderSystem);
   const secondarySystem: GradeSystem | undefined =
@@ -46,6 +49,7 @@ export function NewProjectModal({
     setLocation('');
     setGrade(null);
     setHoldType(null);
+    setSteepness(null);
   };
 
   const close = () => {
@@ -62,6 +66,7 @@ export function NewProjectModal({
       gradeValue: grade,
       location,
       holdType: trackHoldType ? holdType : null,
+      steepness: trackSteepness ? steepness : null,
     });
     bumpData();
     reset();
@@ -127,6 +132,23 @@ export function NewProjectModal({
                 ]}
                 value={holdType ?? 'none'}
                 onChange={(v) => setHoldType(v === 'none' ? null : v)}
+              />
+            </>
+          ) : null}
+
+          {trackSteepness ? (
+            <>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
+                {fi.steepness.prompt}
+              </Text>
+              <SegmentedControl<Steepness | 'none'>
+                segments={[
+                  { value: 'slab', label: fi.steepness.slab },
+                  { value: 'none', label: fi.steepness.undefined },
+                  { value: 'overhang', label: fi.steepness.overhang },
+                ]}
+                value={steepness ?? 'none'}
+                onChange={(v) => setSteepness(v === 'none' ? null : v)}
               />
             </>
           ) : null}
