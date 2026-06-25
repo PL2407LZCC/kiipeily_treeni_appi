@@ -196,3 +196,61 @@ describe('evaluateLog with holdType dims', () => {
     expect(evaluateLog(holdPlan, e, 'boulder', 'font', 'font', '7A', 1, null, null)).toBe('offplan');
   });
 });
+
+/* ----------- Jokeri (null = "ei rajattu") + tarkkuus, molemmat dims ----------- */
+
+const bothDims: PlanDims = { holdType: true, steepness: true };
+const wildcardPlan: SessionPlan = {
+  discipline: 'boulder',
+  label: 'Wild',
+  sourceSessionId: null,
+  modifier: {},
+  dims: bothDims,
+  targets: [
+    // 7C slopy, jyrkkyys rajaamaton (null) -> mikä tahansa jyrkkyys kelpaa
+    { gradeSystem: 'font', gradeValue: '7C', target: 2, holdType: 'slopy', steepness: null },
+    // 6B crimpy: tarkka slab-variantti JA rajaamaton (null) variantti
+    { gradeSystem: 'font', gradeValue: '6B', target: 5, holdType: 'crimpy', steepness: 'slab' },
+    { gradeSystem: 'font', gradeValue: '6B', target: 3, holdType: 'crimpy', steepness: null },
+  ],
+};
+
+describe('evaluateLog with null = wildcard steepness', () => {
+  it('a null-steepness target accepts any logged steepness', () => {
+    expect(evaluateLog(wildcardPlan, [], 'boulder', 'font', 'font', '7C', 1, 'slopy', 'slab')).toBe('ok');
+    expect(evaluateLog(wildcardPlan, [], 'boulder', 'font', 'font', '7C', 1, 'slopy', 'overhang')).toBe('ok');
+    expect(evaluateLog(wildcardPlan, [], 'boulder', 'font', 'font', '7C', 1, 'slopy', null)).toBe('ok');
+  });
+
+  it('still offplan when the holdType has no matching target', () => {
+    expect(evaluateLog(wildcardPlan, [], 'boulder', 'font', 'font', '7C', 1, 'crimpy', 'slab')).toBe('offplan');
+  });
+
+  it('most-specific target wins: a slab log fills the slab target, not the wildcard', () => {
+    const rows = planProgress(
+      wildcardPlan,
+      efforts({
+        sends: [
+          { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6B', count: 5, holdType: 'crimpy', steepness: 'slab' },
+          { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6B', count: 1, holdType: 'crimpy', steepness: 'overhang' },
+        ],
+      }),
+      'font',
+    );
+    // 5 slab -> slab target; 1 overhang -> wildcard (null) target
+    expect(rows.find((r) => r.steepness === 'slab')?.current).toBe(5);
+    expect(rows.find((r) => r.holdType === 'crimpy' && r.steepness === null)?.current).toBe(1);
+  });
+
+  it('over fires against the specific variant once full, wildcard still ok', () => {
+    const filled = efforts({
+      sends: [
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6B', count: 5, holdType: 'crimpy', steepness: 'slab' },
+      ],
+    });
+    // slab target full (5/5) -> +1 slab over
+    expect(evaluateLog(wildcardPlan, filled, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'slab')).toBe('over');
+    // overhang routes to the wildcard target (current 0/3) -> ok
+    expect(evaluateLog(wildcardPlan, filled, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'overhang')).toBe('ok');
+  });
+});

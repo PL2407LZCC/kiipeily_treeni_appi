@@ -9,10 +9,11 @@
  * varten ne normalisoidaan näyttöasteikkoon `convert`illa (likimääräinen — null jätetään
  * pois, jolloin kyseistä astetta ei varoiteta).
  *
- * Ulottuvuudet (dims): jos suunnitelma seuraa otetyyppiä ja/tai jyrkkyyttä, avain on
- * (normalisoitu aste [, holdType] [, steepness]) — sama aste eri ulottuvuusarvoilla on
- * erillinen tavoite ja erillinen edistymisrivi (null on oma varianttinsa). Pois kytketty
- * ulottuvuus jätetään huomiotta avaimessa.
+ * Ulottuvuudet (dims): jos suunnitelma seuraa otetyyppiä ja/tai jyrkkyyttä, tavoitteet
+ * voivat eritellä saman asteen ulottuvuusarvon mukaan. Tavoitteen ulottuvuusarvo on joko
+ * tietty arvo TAI **null = "ei rajattu" (jokeri)**, joka osuu mihin tahansa logatun nousun
+ * arvoon. Nousu lasketaan TARKIMMAN osuvan tavoitteen hyväksi (eniten ei-null-arvoja),
+ * jolloin erilliset variantit eivät tuplaannu.
  */
 
 import { type ClimbEffort } from './aggregate';
@@ -66,14 +67,58 @@ export function planTargetsByGrade(
   return map;
 }
 
+/** Osuuko tavoite logattuun nousuun? Tavoitteen null-ulottuvuus = jokeri (osuu kaikkeen). */
+function targetMatches(
+  t: PlanGradeTarget,
+  grade: string,
+  holdType: HoldType | null,
+  steepness: Steepness | null,
+  dims: PlanDims,
+): boolean {
+  if (t.grade !== grade) return false;
+  if (dims.holdType && t.holdType != null && t.holdType !== holdType) return false;
+  if (dims.steepness && t.steepness != null && t.steepness !== steepness) return false;
+  return true;
+}
+
+/** Tarkkuus = montako käytössä olevaa ulottuvuutta on rajattu (ei-null). */
+function specificity(t: PlanGradeTarget, dims: PlanDims): number {
+  return (
+    (dims.holdType && t.holdType != null ? 1 : 0) +
+    (dims.steepness && t.steepness != null ? 1 : 0)
+  );
+}
+
+/** Tarkin osuva tavoite (eniten rajattuja ulottuvuuksia), tai null jos mikään ei osu. */
+function bestTarget(
+  targets: PlanGradeTarget[],
+  grade: string,
+  holdType: HoldType | null,
+  steepness: Steepness | null,
+  dims: PlanDims,
+): PlanGradeTarget | null {
+  let best: PlanGradeTarget | null = null;
+  let bestSpec = -1;
+  for (const t of targets) {
+    if (!targetMatches(t, grade, holdType, steepness, dims)) continue;
+    const s = specificity(t, dims);
+    if (s > bestSpec) {
+      best = t;
+      bestSpec = s;
+    }
+  }
+  return best;
+}
+
 /**
- * Nykyiset effort-määrät avaimena (aste [, holdType] [, steepness]). Aste normalisoidaan
- * näyttöasteikkoon; muuntumattomat ohitetaan. Vain plan.discipline-lajin efforts lasketaan.
+ * Nykyiset effort-määrät tavoitetta kohden. Jokainen effort lasketaan TARKIMMAN osuvan
+ * tavoitteen hyväksi. Avain = tavoitteen tarkka dimsKey. Vain plan.discipline-lajin efforts.
  */
-function currentByKey(
+function currentByTarget(
   plan: SessionPlan,
   efforts: ClimbEffort[],
   displaySystem: GradeSystem,
+  targets: PlanGradeTarget[],
 ): Map<string, number> {
   const dims = planDims(plan);
   const map = new Map<string, number>();
@@ -81,7 +126,9 @@ function currentByKey(
     if (e.discipline !== plan.discipline) continue;
     const grade = convert(e.gradeValue, e.gradeSystem, displaySystem);
     if (grade == null) continue;
-    const key = dimsKey(grade, e.holdType, e.steepness, dims);
+    const t = bestTarget(targets, grade, e.holdType, e.steepness, dims);
+    if (!t) continue;
+    const key = dimsKey(t.grade, t.holdType, t.steepness, dims);
     map.set(key, (map.get(key) ?? 0) + e.count);
   }
   return map;
@@ -105,10 +152,10 @@ export function planProgress(
   displaySystem: GradeSystem,
 ): PlanProgressRow[] {
   const dims = planDims(plan);
-  const targets = planTargetsByGrade(plan, displaySystem);
-  const current = currentByKey(plan, efforts, displaySystem);
+  const targets = [...planTargetsByGrade(plan, displaySystem).values()];
+  const current = currentByTarget(plan, efforts, displaySystem, targets);
 
-  return [...targets.values()]
+  return targets
     .map((t) => ({
       grade: t.grade,
       holdType: t.holdType,
@@ -125,8 +172,8 @@ export type LogVerdict = 'ok' | 'over' | 'offplan';
  * Arvioi kirjaus suunnitelmaa vasten ENNEN insertointia.
  * - eri laji kuin suunnitelma → 'ok' (suunnitelma ei koske tätä).
  * - aste ei muunnu näyttöasteikkoon (null) → 'ok' (ei voida verrata → ei varoiteta).
- * - (aste [, holdType] [, steepness]) ei ole suunnitelmassa → 'offplan'.
- * - muuten current + addCount > target → 'over', muuten 'ok'.
+ * - mikään tavoite ei osu (aste + ulottuvuudet, null-jokeri huomioiden) → 'offplan'.
+ * - muuten tarkimman osuvan tavoitteen current + addCount > target → 'over', muuten 'ok'.
  *
  * holdType/steepness ovat logattavan nousun arvot; niitä käytetään vain jos plan.dims
  * kyseisen ulottuvuuden ottaa huomioon.
@@ -147,12 +194,11 @@ export function evaluateLog(
   if (grade == null) return 'ok';
 
   const dims = planDims(plan);
-  const key = dimsKey(grade, holdType, steepness, dims);
+  const targets = [...planTargetsByGrade(plan, displaySystem).values()];
+  const t = bestTarget(targets, grade, holdType, steepness, dims);
+  if (!t) return 'offplan';
 
-  const targets = planTargetsByGrade(plan, displaySystem);
-  const target = targets.get(key);
-  if (!target) return 'offplan';
-
-  const current = currentByKey(plan, efforts, displaySystem).get(key) ?? 0;
-  return current + addCount > target.target ? 'over' : 'ok';
+  const key = dimsKey(t.grade, t.holdType, t.steepness, dims);
+  const current = currentByTarget(plan, efforts, displaySystem, targets).get(key) ?? 0;
+  return current + addCount > t.target ? 'over' : 'ok';
 }
