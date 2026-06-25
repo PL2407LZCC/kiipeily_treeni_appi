@@ -287,6 +287,9 @@ export function PlanBuilderModal({
               ))}
 
               {/* Tallenna nykyinen suunnitelma uudelleenkäytettävänä mallina. */}
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                {fi.plan.saveAsTemplate}
+              </Text>
               <View style={styles.addRow}>
                 <TextInput
                   value={templateName}
