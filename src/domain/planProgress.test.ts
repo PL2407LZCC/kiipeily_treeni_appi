@@ -1,5 +1,5 @@
 import { buildEfforts, type ClimbEffort } from './aggregate';
-import { evaluateLog, planProgress, planTargetsByGrade } from './planProgress';
+import { evaluateLog, openGrades, planProgress, planTargetsByGrade } from './planProgress';
 import type { PlanDims, SessionPlan } from './types';
 
 const dateBySession = new Map<number, string>([[1, '2026-06-24']]);
@@ -252,5 +252,42 @@ describe('evaluateLog with null = wildcard steepness', () => {
     expect(evaluateLog(wildcardPlan, filled, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'slab')).toBe('over');
     // overhang routes to the wildcard target (current 0/3) -> ok
     expect(evaluateLog(wildcardPlan, filled, 'boulder', 'font', 'font', '6B', 1, 'crimpy', 'overhang')).toBe('ok');
+  });
+});
+
+/* -------------------- openGrades (exact-tilan astesuodatus) -------------------- */
+
+describe('openGrades', () => {
+  it('lists every plan grade when nothing is logged', () => {
+    expect(openGrades(fontPlan, [], 'font')).toEqual(new Set(['6C', '7A']));
+  });
+
+  it('drops a grade once all its variants are full', () => {
+    // 6C target 6 fully met -> drops; 7A target 2 still open -> stays.
+    const e = efforts({
+      sends: [{ sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6C', count: 6 }],
+    });
+    expect(openGrades(fontPlan, e, 'font')).toEqual(new Set(['7A']));
+  });
+
+  it('keeps a grade while ANY dimensioned variant still has room', () => {
+    // 6B crimpy slab full (5/5) but the wildcard variant (0/3) is open -> 6B stays; 7C open.
+    const e = efforts({
+      sends: [
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6B', count: 5, holdType: 'crimpy', steepness: 'slab' },
+      ],
+    });
+    expect(openGrades(wildcardPlan, e, 'font')).toEqual(new Set(['6B', '7C']));
+  });
+
+  it('drops a grade only when both the specific and wildcard variants are full', () => {
+    const e = efforts({
+      sends: [
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6B', count: 5, holdType: 'crimpy', steepness: 'slab' },
+        // 3 more crimpy (overhang) fill the wildcard (null) variant 3/3
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6B', count: 3, holdType: 'crimpy', steepness: 'overhang' },
+      ],
+    });
+    expect(openGrades(wildcardPlan, e, 'font').has('6B')).toBe(false);
   });
 });

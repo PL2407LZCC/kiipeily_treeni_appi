@@ -33,7 +33,10 @@ export const BACKUP_APP_ID = 'kiipeily-treeni-appi';
 // Sarakkeet kulkevat olemassa olevien taulujen mukana; uudet taulut omana avaimenaan.
 // Vanhat tiedostot tuodaan edelleen (puuttuvat kentät jäävät tyhjiksi/null, ja
 // puuttuva session_themes-/training_plans-avain jättää nykyiset rivit ennalleen).
-export const BACKUP_VERSION = 8;
+// v9: suunnitelmiin lisättiin noudatustila (mode: 'loose' | 'exact'), joka kulkee
+//     plan-JSONin mukana (sessions.plan / training_plans). Ei rakenteellista muutosta;
+//     vanhat suunnitelmat ilman mode-kenttää oletetaan 'loose'-tilaan lukuvaiheessa.
+export const BACKUP_VERSION = 9;
 
 interface BackupFile {
   app: string;

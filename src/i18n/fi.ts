@@ -100,6 +100,13 @@ export const fi = {
     dimsLabel: 'Ulottuvuudet',
     trackHoldType: 'Seuraa otetyyppiä',
     trackSteepness: 'Seuraa jyrkkyyttä',
+    // Noudatustila: loose (varoita + salli) vai exact (kova katto)
+    modeLabel: 'Noudatus',
+    modeLoose: 'Joustava',
+    modeExact: 'Tarkka',
+    modeHint:
+      'Joustava: kaikki asteet näkyvät, ylitys vain varoittaa. Tarkka: vain suunnitelman asteet näkyvät, täyttyneet poistuvat, eikä ylitystä voi ohittaa.',
+    exactBadge: 'Tarkka',
     preview: 'Tavoitteet',
     targetsEditHint: 'Hienosäädä jokaista astetta +/- napeilla. Muokkaimien (volyymi/vaikeus) muuttaminen palauttaa lähtöarvot.',
     addGrade: 'Lisää aste',
@@ -125,6 +132,10 @@ export const fi = {
     overMsg: 'Tämä kirjaus ylittää tämän asteen tavoitteen. Kirjataanko silti?',
     offPlanTitle: 'Suunnitelman ulkopuolinen aste',
     offPlanMsg: 'Tämä aste ei kuulu suunnitelmaan. Kirjataanko silti?',
+    // Exact-tila (kova katto): ei "kirjaa silti"
+    overMsgExact: 'Tämän asteen tavoite on jo täynnä. Tarkka suunnitelma ei salli ylitystä.',
+    offPlanMsgExact: 'Tämä variantti ei kuulu suunnitelmaan. Tarkka suunnitelma ei salli sitä.',
+    exactComplete: 'Suunnitelma valmis — kaikki tavoitteet täynnä. 🎉',
   },
   project: {
     name: 'Nimi',

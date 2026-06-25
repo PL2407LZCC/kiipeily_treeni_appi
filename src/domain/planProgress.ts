@@ -166,6 +166,23 @@ export function planProgress(
     .sort((a, b) => gradeIndex(a.grade, displaySystem) - gradeIndex(b.grade, displaySystem));
 }
 
+/**
+ * Asteet (näyttöasteikossa), joilla on vielä tilaa tavoitteeseen — exact-tilan
+ * astesuodatusta varten. Aste on "auki", jos jokin sen varianteista on vajaa
+ * (current < target); kun kaikki variantit ovat täynnä, aste poistuu valikosta.
+ */
+export function openGrades(
+  plan: SessionPlan,
+  efforts: ClimbEffort[],
+  displaySystem: GradeSystem,
+): Set<string> {
+  const open = new Set<string>();
+  for (const r of planProgress(plan, efforts, displaySystem)) {
+    if (r.current < r.target) open.add(r.grade);
+  }
+  return open;
+}
+
 export type LogVerdict = 'ok' | 'over' | 'offplan';
 
 /**

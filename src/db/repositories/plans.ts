@@ -9,8 +9,10 @@ import { desc, eq } from 'drizzle-orm';
 import { nowIso } from '@/domain/dates';
 import {
   DEFAULT_PLAN_DIMS,
+  DEFAULT_PLAN_MODE,
   type Discipline,
   type PlanDims,
+  type PlanMode,
   type PlanTarget,
   type SessionEnvironment,
   type TrainingPlanTemplate,
@@ -26,6 +28,7 @@ import { trainingPlans } from '../schema';
 function toTemplate(row: typeof trainingPlans.$inferSelect): TrainingPlanTemplate {
   let targets: PlanTarget[] = [];
   let dims: PlanDims = { ...DEFAULT_PLAN_DIMS };
+  let mode: PlanMode = DEFAULT_PLAN_MODE;
   try {
     const parsed = JSON.parse(row.targets);
     if (Array.isArray(parsed)) {
@@ -38,6 +41,7 @@ function toTemplate(row: typeof trainingPlans.$inferSelect): TrainingPlanTemplat
           steepness: !!parsed.dims.steepness,
         };
       }
+      if (parsed.mode === 'exact') mode = 'exact';
     }
   } catch {
     targets = [];
@@ -49,6 +53,7 @@ function toTemplate(row: typeof trainingPlans.$inferSelect): TrainingPlanTemplat
     theme: row.theme,
     environment: row.environment,
     dims,
+    mode,
     targets,
     createdAt: row.createdAt,
   };
@@ -75,6 +80,7 @@ export interface NewTemplate {
   theme: string | null;
   environment: SessionEnvironment | null;
   dims: PlanDims;
+  mode: PlanMode;
   targets: PlanTarget[];
 }
 
@@ -89,8 +95,8 @@ export function addTemplate(t: NewTemplate): number | null {
       discipline: t.discipline,
       theme: t.theme,
       environment: t.environment,
-      // dims + targets tallennetaan yhtenä objektina (back-compat luetaan toTemplatessa).
-      targets: JSON.stringify({ dims: t.dims, targets: t.targets }),
+      // dims + mode + targets tallennetaan yhtenä objektina (back-compat luetaan toTemplatessa).
+      targets: JSON.stringify({ dims: t.dims, mode: t.mode, targets: t.targets }),
       createdAt: nowIso(),
     })
     .run();
