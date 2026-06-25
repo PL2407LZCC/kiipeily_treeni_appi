@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
 import { Plans, Sessions } from '@/db/repositories';
@@ -10,6 +10,7 @@ import { buildPlanTargets } from '@/domain/plan';
 import type {
   Discipline,
   GradeSystem,
+  PlanDims,
   PlanTarget,
   SessionEnvironment,
   SessionPlan,
@@ -17,12 +18,31 @@ import type {
 } from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
-import { fi } from '@/i18n/fi';
+import { fi, holdTypeLabel, steepnessLabel } from '@/i18n/fi';
 import { bumpData } from '@/state/dataVersion';
 import { GradePicker } from './GradePicker';
 import { PrimaryButton } from './PrimaryButton';
 import { SegmentedControl } from './SegmentedControl';
 import { Stepper } from './Stepper';
+
+/** Yksilöivä avain tavoitteelle: aste + (käytössä olevat) ulottuvuusarvot. */
+function targetKey(t: PlanTarget): string {
+  return `${t.gradeSystem}:${t.gradeValue}:${t.holdType ?? '∅'}:${t.steepness ?? '∅'}`;
+}
+
+/** Ulottuvuus-suffiksi tavoitteen näytölle, esim. " · crimpy · overhang". */
+function targetDimSuffix(t: PlanTarget, dims: PlanDims): string {
+  const parts: string[] = [];
+  if (dims.holdType) {
+    const l = holdTypeLabel(t.holdType);
+    if (l) parts.push(l);
+  }
+  if (dims.steepness) {
+    const l = steepnessLabel(t.steepness);
+    if (l) parts.push(l);
+  }
+  return parts.length ? ` · ${parts.join(' · ')}` : '';
+}
 
 interface PlanBuilderModalProps {
   visible: boolean;
@@ -64,6 +84,7 @@ export function PlanBuilderModal({
   const [templateId, setTemplateId] = useState<number | null>(null);
   const [volumePct, setVolumePct] = useState(0);
   const [gradeShift, setGradeShift] = useState(0);
+  const [dims, setDims] = useState<PlanDims>({ holdType: false, steepness: false });
   const [templateName, setTemplateName] = useState('');
 
   // Pohjasessiot luetaan kun modaali on auki (kevyt synkroninen kysely).
@@ -87,8 +108,13 @@ export function PlanBuilderModal({
     if (source === 'template') return template?.targets ?? [];
     if (baselineId == null) return [];
     const efforts = Sessions.sessionEfforts(baselineId);
-    return buildPlanTargets(efforts, { volumePct, gradeShift });
-  }, [source, template, baselineId, volumePct, gradeShift]);
+    return buildPlanTargets(efforts, { volumePct, gradeShift }, dims);
+  }, [source, template, baselineId, volumePct, gradeShift, dims]);
+
+  // Templatesta valittaessa peilaa mallin omat dims (read-only lähde).
+  useEffect(() => {
+    if (source === 'template' && template) setDims(template.dims);
+  }, [source, template]);
 
   // Käsin hienosäädettävä työkopio. Lähde/muokkaimet asettavat lähtöarvot;
   // sen jälkeen jokaista astetta voi säätää +/- erikseen. Muokkaimen muutos
@@ -118,28 +144,29 @@ export function PlanBuilderModal({
   }, [editedTargets]);
 
   const adjustTarget = (t: PlanTarget, delta: number) => {
+    const key = targetKey(t);
     setEditedTargets((prev) =>
       prev.map((x) =>
-        x.gradeSystem === t.gradeSystem && x.gradeValue === t.gradeValue
-          ? { ...x, target: Math.max(0, x.target + delta) }
-          : x,
+        targetKey(x) === key ? { ...x, target: Math.max(0, x.target + delta) } : x,
       ),
     );
   };
 
-  /** Lisää (tai kasvata) aste, jota pohjasessiossa ei ollut. Lajitellaan vaikeuden mukaan. */
+  /**
+   * Lisää (tai kasvata) aste, jota pohjasessiossa ei ollut. Uudet asteet lisätään
+   * "määrittelemättömällä" ulottuvuusarvolla (null) kun dims on käytössä. Lajitellaan
+   * vaikeuden mukaan.
+   */
   const addGrade = (gradeValue: string) => {
+    const newTarget: PlanTarget = { gradeSystem: primarySystem, gradeValue, target: 1 };
+    if (dims.holdType) newTarget.holdType = null;
+    if (dims.steepness) newTarget.steepness = null;
+    const newKey = targetKey(newTarget);
     setEditedTargets((prev) => {
-      const exists = prev.some(
-        (t) => t.gradeSystem === primarySystem && t.gradeValue === gradeValue,
-      );
+      const exists = prev.some((t) => targetKey(t) === newKey);
       const next = exists
-        ? prev.map((t) =>
-            t.gradeSystem === primarySystem && t.gradeValue === gradeValue
-              ? { ...t, target: t.target + 1 }
-              : t,
-          )
-        : [...prev, { gradeSystem: primarySystem, gradeValue, target: 1 }];
+        ? prev.map((t) => (targetKey(t) === newKey ? { ...t, target: t.target + 1 } : t))
+        : [...prev, newTarget];
       return [...next].sort((a, b) =>
         a.gradeSystem === b.gradeSystem
           ? gradeIndex(a.gradeValue, a.gradeSystem) - gradeIndex(b.gradeValue, b.gradeSystem)
@@ -154,6 +181,7 @@ export function PlanBuilderModal({
     setTemplateId(null);
     setVolumePct(0);
     setGradeShift(0);
+    setDims({ holdType: false, steepness: false });
     setTemplateName('');
     setEditedTargets([]);
     setShowGradePicker(false);
@@ -172,6 +200,7 @@ export function PlanBuilderModal({
         label: template.name,
         sourceSessionId: null,
         modifier: {},
+        dims: template.dims,
         targets: finalTargets,
       });
       close();
@@ -187,6 +216,7 @@ export function PlanBuilderModal({
           ...(volumePct !== 0 ? { volumePct } : {}),
           ...(gradeShift !== 0 ? { gradeShift } : {}),
         },
+        dims,
         targets: finalTargets,
       });
       close();
@@ -200,6 +230,7 @@ export function PlanBuilderModal({
       discipline: disciplineForTargets(finalTargets),
       theme,
       environment,
+      dims,
       targets: finalTargets,
     });
     if (id != null) {
@@ -293,6 +324,28 @@ export function PlanBuilderModal({
                       label={fi.plan.gradeShiftLabel}
                     />
                   </View>
+
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    {fi.plan.dimsLabel}
+                  </Text>
+                  <View style={[styles.dimRow, { backgroundColor: colors.backgroundElement }]}>
+                    <Text style={[styles.dimLabel, { color: colors.text }]}>
+                      {fi.plan.trackHoldType}
+                    </Text>
+                    <Switch
+                      value={dims.holdType}
+                      onValueChange={(v) => setDims((d) => ({ ...d, holdType: v }))}
+                    />
+                  </View>
+                  <View style={[styles.dimRow, { backgroundColor: colors.backgroundElement }]}>
+                    <Text style={[styles.dimLabel, { color: colors.text }]}>
+                      {fi.plan.trackSteepness}
+                    </Text>
+                    <Switch
+                      value={dims.steepness}
+                      onValueChange={(v) => setDims((d) => ({ ...d, steepness: v }))}
+                    />
+                  </View>
                 </>
               ) : null}
             </>
@@ -345,9 +398,14 @@ export function PlanBuilderModal({
               </Text>
               {editedTargets.map((t) => (
                 <View
-                  key={`${t.gradeSystem}:${t.gradeValue}`}
+                  key={targetKey(t)}
                   style={[styles.targetRow, { backgroundColor: colors.backgroundElement }]}>
-                  <Text style={[styles.targetGrade, { color: colors.text }]}>{t.gradeValue}</Text>
+                  <Text style={[styles.targetGrade, { color: colors.text }]}>
+                    {t.gradeValue}
+                    <Text style={[styles.targetDim, { color: colors.textSecondary }]}>
+                      {targetDimSuffix(t, dims)}
+                    </Text>
+                  </Text>
                   <View style={styles.targetEdit}>
                     <Pressable
                       onPress={() => adjustTarget(t, -1)}
@@ -437,6 +495,15 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 15, fontWeight: '700' },
   rowMeta: { fontSize: 13 },
   modRow: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: Spacing.two },
+  dimRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.three,
+    borderRadius: 10,
+  },
+  dimLabel: { fontSize: 15, fontWeight: '600' },
+  targetDim: { fontSize: 14, fontWeight: '600' },
   targetRow: {
     flexDirection: 'row',
     alignItems: 'center',

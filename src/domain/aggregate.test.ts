@@ -88,9 +88,9 @@ describe('aikajaksot', () => {
 describe('tallyByGrade / totals', () => {
   // font 7A (= V6) send 2, v V6 attempt 3 → V6 total 5; font 7B (=V8) attempt 4
   const efforts: ClimbEffort[] = [
-    { discipline: 'boulder', gradeSystem: 'font', gradeValue: '7A', count: 2, kind: 'send', date: '2026-06-22', sessionId: 1 },
-    { discipline: 'boulder', gradeSystem: 'v', gradeValue: 'V6', count: 3, kind: 'attempt', date: '2026-06-22', sessionId: 1 },
-    { discipline: 'boulder', gradeSystem: 'font', gradeValue: '7B', count: 4, kind: 'attempt', date: '2026-06-24', sessionId: 2 },
+    { discipline: 'boulder', gradeSystem: 'font', gradeValue: '7A', count: 2, kind: 'send', date: '2026-06-22', sessionId: 1, holdType: null, steepness: null },
+    { discipline: 'boulder', gradeSystem: 'v', gradeValue: 'V6', count: 3, kind: 'attempt', date: '2026-06-22', sessionId: 1, holdType: null, steepness: null },
+    { discipline: 'boulder', gradeSystem: 'font', gradeValue: '7B', count: 4, kind: 'attempt', date: '2026-06-24', sessionId: 2, holdType: null, steepness: null },
   ];
 
   test('total normalisoi V-asteikkoon ja summaa', () => {

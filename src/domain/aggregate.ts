@@ -16,7 +16,7 @@
 
 import { gradeIndex, gradesFor } from './grades';
 import { gradePyramid, isoWeekStart, type PyramidRow } from './stats';
-import type { Discipline, GradeSystem } from './types';
+import type { Discipline, GradeSystem, HoldType, Steepness } from './types';
 
 export type EffortKind = 'send' | 'attempt';
 export type EffortMetric = 'total' | 'sends' | 'attempts';
@@ -30,6 +30,10 @@ export interface ClimbEffort {
   kind: EffortKind;
   date: string; // session-kalenteripäivä YYYY-MM-DD
   sessionId: number;
+  /** Otetyyppi (valinnainen ulottuvuus); null = määrittelemätön. */
+  holdType: HoldType | null;
+  /** Jyrkkyys (valinnainen ulottuvuus); null = määrittelemätön. */
+  steepness: Steepness | null;
 }
 
 /* ------------------------- raakarivien normalisointi ------------------------- */
@@ -42,6 +46,8 @@ export interface SendEffortInput {
   gradeSystem: GradeSystem;
   gradeValue: string;
   count: number;
+  holdType?: HoldType | null;
+  steepness?: Steepness | null;
 }
 export type AttemptEffortInput = SendEffortInput;
 export interface ProjectAttemptEffortInput {
@@ -50,6 +56,8 @@ export interface ProjectAttemptEffortInput {
   gradeSystem: GradeSystem;
   gradeValue: string;
   attemptCount: number;
+  holdType?: HoldType | null;
+  steepness?: Steepness | null;
 }
 
 export interface BuildEffortsInput {
@@ -78,6 +86,8 @@ export function buildEfforts(
       kind: 'send',
       date,
       sessionId: s.sessionId,
+      holdType: s.holdType ?? null,
+      steepness: s.steepness ?? null,
     });
   }
   for (const a of input.attemptLogs ?? []) {
@@ -91,6 +101,8 @@ export function buildEfforts(
       kind: 'attempt',
       date,
       sessionId: a.sessionId,
+      holdType: a.holdType ?? null,
+      steepness: a.steepness ?? null,
     });
   }
   for (const p of input.projectAttempts ?? []) {
@@ -104,6 +116,8 @@ export function buildEfforts(
       kind: 'attempt',
       date,
       sessionId: p.sessionId,
+      holdType: p.holdType ?? null,
+      steepness: p.steepness ?? null,
     });
   }
   return out;

@@ -96,6 +96,10 @@ export const fi = {
     modifiers: 'Muokkaimet',
     volumeLabel: 'Volyymi (%)',
     gradeShiftLabel: 'Vaikeus (askelta)',
+    // Ulottuvuus-kytkimet: jaa tavoitteet otetyypin / jyrkkyyden mukaan
+    dimsLabel: 'Ulottuvuudet',
+    trackHoldType: 'Seuraa otetyyppiä',
+    trackSteepness: 'Seuraa jyrkkyyttä',
     preview: 'Tavoitteet',
     targetsEditHint: 'Hienosäädä jokaista astetta +/- napeilla. Muokkaimien (volyymi/vaikeus) muuttaminen palauttaa lähtöarvot.',
     addGrade: 'Lisää aste',

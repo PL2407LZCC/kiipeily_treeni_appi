@@ -2,7 +2,7 @@ import { and, desc, eq, gte, isNull } from 'drizzle-orm';
 
 import { buildEfforts, type ClimbEffort } from '@/domain/aggregate';
 import { nowIso, todayIso } from '@/domain/dates';
-import type { SessionEnvironment, SessionPlan } from '@/domain/types';
+import { DEFAULT_PLAN_DIMS, type SessionEnvironment, type SessionPlan } from '@/domain/types';
 import { db } from '../client';
 import { sessions } from '../schema';
 import { listAttemptLogsForSession } from './attemptLogs';
@@ -77,7 +77,9 @@ export function getSessionPlan(id: number): SessionPlan | null {
   const row = db.select({ plan: sessions.plan }).from(sessions).where(eq(sessions.id, id)).get();
   if (!row?.plan) return null;
   try {
-    return JSON.parse(row.plan) as SessionPlan;
+    const parsed = JSON.parse(row.plan) as SessionPlan;
+    // Vanhat suunnitelmat (ennen dims-ominaisuutta) eivät sisällä dims-kenttää.
+    return { ...parsed, dims: parsed.dims ?? { ...DEFAULT_PLAN_DIMS } };
   } catch {
     return null;
   }
@@ -107,6 +109,8 @@ export function sessionEfforts(id: number): ClimbEffort[] {
         gradeSystem: s.gradeSystem,
         gradeValue: s.gradeValue,
         count: s.count,
+        holdType: s.holdType,
+        steepness: s.steepness,
       })),
       attemptLogs: attemptLogs.map((a) => ({
         sessionId: id,
@@ -114,13 +118,18 @@ export function sessionEfforts(id: number): ClimbEffort[] {
         gradeSystem: a.gradeSystem,
         gradeValue: a.gradeValue,
         count: a.count,
+        holdType: a.holdType,
+        steepness: a.steepness,
       })),
+      // Projektiyritykset perivät ulottuvuudet projektilta (join attemptsForSession-kyselyssä).
       projectAttempts: projectAttempts.map((p) => ({
         sessionId: id,
         discipline: p.discipline,
         gradeSystem: p.gradeSystem,
         gradeValue: p.gradeValue,
         attemptCount: p.attemptCount,
+        holdType: p.holdType,
+        steepness: p.steepness,
       })),
     },
     dateBySession,
