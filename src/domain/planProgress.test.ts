@@ -310,6 +310,40 @@ describe('cross-dimension wildcards (equal specificity)', () => {
     expect(rows.find((r) => r.holdType === 'crimpy' && r.steepness === null)?.current).toBe(1);
   });
 
+  it('a flexible crimpy-vertical must not block a later slopy-vertical (optimal assignment)', () => {
+    // Tight plan: "6A vertical" (any hold, slab) cap1 + "6A crimpy" (crimpy, any) cap1.
+    const tight: SessionPlan = {
+      discipline: 'boulder',
+      label: 'Tight',
+      sourceSessionId: null,
+      modifier: {},
+      dims: bothDims,
+      targets: [
+        { gradeSystem: 'font', gradeValue: '6A', target: 1, holdType: null, steepness: 'slab' },
+        { gradeSystem: 'font', gradeValue: '6A', target: 1, holdType: 'crimpy', steepness: null },
+      ],
+    };
+    // One crimpy-vertical logged — it can satisfy EITHER target.
+    const e = efforts({
+      sends: [
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6A', count: 1, holdType: 'crimpy', steepness: 'slab' },
+      ],
+    });
+    // slopy-vertical matches ONLY "6A vertical"; the optimal solver reroutes the flexible
+    // crimpy-vertical to "6A crimpy" so this still fits. (Greedy wrongly reported 'over'.)
+    expect(evaluateLog(tight, e, 'boulder', 'font', 'font', '6A', 1, 'slopy', 'slab')).toBe('ok');
+
+    // Once both slots are genuinely taken (crimpy-vertical + slopy-vertical), a further
+    // vertical-only climb has nowhere to go -> over.
+    const both = efforts({
+      sends: [
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6A', count: 1, holdType: 'crimpy', steepness: 'slab' },
+        { sessionId: 1, discipline: 'boulder', gradeSystem: 'font', gradeValue: '6A', count: 1, holdType: 'slopy', steepness: 'slab' },
+      ],
+    });
+    expect(evaluateLog(tight, both, 'boulder', 'font', 'font', '6A', 1, 'slopy', 'slab')).toBe('over');
+  });
+
   it('only flags over once BOTH cross targets are full', () => {
     // täytä "6A vertical" 5 (määrittelemätön ote, slab) + "6A crimpy" 4 (crimpy, overhang
     // -> osuu vain crimpyyn). Sitten crimpy-slab osuu molempiin, molemmat täynnä -> over.

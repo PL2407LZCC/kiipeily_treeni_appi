@@ -12,9 +12,10 @@
  * Ulottuvuudet (dims): jos suunnitelma seuraa otetyyppiä ja/tai jyrkkyyttä, tavoitteet
  * voivat eritellä saman asteen ulottuvuusarvon mukaan. Tavoitteen ulottuvuusarvo on joko
  * tietty arvo TAI **null = "ei rajattu" (jokeri)**, joka osuu mihin tahansa logatun nousun
- * arvoon. Nousu jaetaan osuviin tavoitteisiin kapasiteettitietoisella ahneella jaolla
- * (tarkin ensin, tasapelissä eniten tilaa jäljellä ensin), joten erilliset variantit eivät
- * tuplaannu MUTTA täysi tarkka variantti ei estä yhtä lailla osuvaa yleisempää tavoitetta.
+ * arvoon. Koska sama nousu voi osua useaan tavoitteeseen (ristikkäiset jokerit), nousut
+ * sijoitetaan tavoitteisiin OPTIMAALISESTI maksimivirtauksella — ei ahneesti. Näin joustava
+ * nousu ohjautuu pois jäykemmän tieltä (crimpy-vertical → "crimpy", jotta "vertical" jää
+ * slopy-verticalille), eivätkä variantit tuplaannu eivätkä lukkiudu väärin.
  */
 
 import { type ClimbEffort } from './aggregate';
@@ -82,38 +83,104 @@ function targetMatches(
   return true;
 }
 
-/** Tarkkuus = montako käytössä olevaa ulottuvuutta on rajattu (ei-null). */
-function specificity(t: PlanGradeTarget, dims: PlanDims): number {
-  return (
-    (dims.holdType && t.holdType != null ? 1 : 0) +
-    (dims.steepness && t.steepness != null ? 1 : 0)
-  );
-}
-
 /**
- * Kohteet, joihin nousu (grade, holdType, steepness) osuu — tarkin (eniten rajattuja
- * ulottuvuuksia) ensin. Tavoitteen null-ulottuvuus = jokeri (osuu kaikkeen).
+ * Nousu-ryhmä: yksi (aste, otetyyppi, jyrkkyys) -yhdistelmä summattuna + indeksit niihin
+ * tavoitteisiin joihin se osuu. Ryhmät, jotka eivät osu mihinkään tavoitteeseen, jätetään
+ * pois (suunnitelman ulkopuolisia; eivät kerrytä mitään).
  */
-function matchingTargets(
+interface ClimbGroup {
+  count: number;
+  matches: number[];
+}
+
+/** Ryhmittele effortit näyttöasteikossa (aste, otetyyppi, jyrkkyys) ja liitä osuvat tavoitteet. */
+function buildGroups(
+  plan: SessionPlan,
+  efforts: ClimbEffort[],
+  displaySystem: GradeSystem,
   targets: PlanGradeTarget[],
-  grade: string,
-  holdType: HoldType | null,
-  steepness: Steepness | null,
   dims: PlanDims,
-): PlanGradeTarget[] {
-  return targets
-    .filter((t) => targetMatches(t, grade, holdType, steepness, dims))
-    .sort((a, b) => specificity(b, dims) - specificity(a, dims));
+): ClimbGroup[] {
+  const byKey = new Map<string, { grade: string; holdType: HoldType | null; steepness: Steepness | null; count: number }>();
+  for (const e of efforts) {
+    if (e.discipline !== plan.discipline) continue;
+    const grade = convert(e.gradeValue, e.gradeSystem, displaySystem);
+    if (grade == null) continue;
+    const k = `${grade}|${e.holdType ?? ''}|${e.steepness ?? ''}`;
+    const g = byKey.get(k) ?? { grade, holdType: e.holdType, steepness: e.steepness, count: 0 };
+    g.count += e.count;
+    byKey.set(k, g);
+  }
+  const groups: ClimbGroup[] = [];
+  for (const g of byKey.values()) {
+    const matches: number[] = [];
+    targets.forEach((t, i) => {
+      if (targetMatches(t, g.grade, g.holdType, g.steepness, dims)) matches.push(i);
+    });
+    if (matches.length > 0) groups.push({ count: g.count, matches });
+  }
+  return groups;
 }
 
 /**
- * Nykyiset effort-määrät tavoitetta kohden, kapasiteettitietoisella ahneella jaolla.
- * Jokainen effort sijoitetaan osuviin tavoitteisiin: rajatuimmat effortit (vähiten
- * osumia) ensin, kukin täytetään tarkin ensin ja tasapelissä eniten tilaa jäljellä
- * ensin. Näin täysi tarkka variantti EI estä yhtä yleistä — esim. "5 crimpy" kelpaa
- * vaikka "5 vertical" olisi jo täynnä (sama nousu osuu molempiin samalla tarkkuudella).
- * Ylimäärä kirjataan tarkimmalle osumalle (näkyy 'over'na). Avain = tavoitteen tarkka
- * dimsKey. Vain plan.discipline-lajin efforts.
+ * Sijoita nousu-ryhmät tavoitteisiin OPTIMAALISESTI (maksimivirtaus). Ahne jako ei riitä:
+ * sama nousu voi osua useaan tavoitteeseen, ja joustava nousu pitää ohjata niin, ettei se
+ * vie paikkaa jäykemmältä (esim. crimpy-vertical → "crimpy", jotta "vertical" jää slopy-
+ * verticalille). Palauttaa sijoitetun kokonaismäärän + per-tavoite sisäänvirtauksen (≤ tavoite).
+ */
+function placeClimbs(
+  groups: ClimbGroup[],
+  targets: PlanGradeTarget[],
+): { placed: number; byTarget: number[] } {
+  const G = groups.length;
+  const T = targets.length;
+  const source = 0;
+  const sink = 1 + G + T;
+  const N = sink + 1;
+  const total = groups.reduce((s, g) => s + g.count, 0);
+  const INF = total + 1; // riittävä "ääretön" (kokonaismäärää suurempi)
+
+  // Jäännöskapasiteettimatriisi.
+  const cap: number[][] = Array.from({ length: N }, () => new Array<number>(N).fill(0));
+  for (let i = 0; i < G; i++) {
+    cap[source][1 + i] = groups[i].count;
+    for (const t of groups[i].matches) cap[1 + i][1 + G + t] = INF;
+  }
+  for (let j = 0; j < T; j++) cap[1 + G + j][sink] = targets[j].target;
+
+  // Edmonds–Karp (BFS-lisäyspolut). Graafi on pieni → tehokkuus ei ole ongelma.
+  let placed = 0;
+  for (;;) {
+    const parent = new Array<number>(N).fill(-1);
+    parent[source] = source;
+    const queue = [source];
+    while (queue.length) {
+      const u = queue.shift() as number;
+      for (let v = 0; v < N; v++) {
+        if (parent[v] === -1 && cap[u][v] > 0) {
+          parent[v] = u;
+          queue.push(v);
+        }
+      }
+    }
+    if (parent[sink] === -1) break;
+    let bottleneck = INF;
+    for (let v = sink; v !== source; v = parent[v]) bottleneck = Math.min(bottleneck, cap[parent[v]][v]);
+    for (let v = sink; v !== source; v = parent[v]) {
+      cap[parent[v]][v] -= bottleneck;
+      cap[v][parent[v]] += bottleneck;
+    }
+    placed += bottleneck;
+  }
+
+  // Per-tavoite sisäänvirtaus = alkuperäinen kapasiteetti − jäljellä oleva (tavoite→sink).
+  const byTarget = targets.map((t, j) => t.target - cap[1 + G + j][sink]);
+  return { placed, byTarget };
+}
+
+/**
+ * Nykyiset effort-määrät tavoitetta kohden (optimaalinen sijoitus). Avain = tavoitteen
+ * tarkka dimsKey. Vain plan.discipline-lajin efforts; suunnitelman ulkopuoliset jäävät pois.
  */
 function currentByTarget(
   plan: SessionPlan,
@@ -122,48 +189,12 @@ function currentByTarget(
   targets: PlanGradeTarget[],
 ): Map<string, number> {
   const dims = planDims(plan);
-  const keyOf = (t: PlanGradeTarget) => dimsKey(t.grade, t.holdType, t.steepness, dims);
+  const groups = buildGroups(plan, efforts, displaySystem, targets, dims);
+  const { byTarget } = placeClimbs(groups, targets);
   const cur = new Map<string, number>();
-  for (const t of targets) cur.set(keyOf(t), 0);
-
-  // Esikäsittele: muunna aste + laske osuvat tavoitteet kullekin effortille.
-  const items: { count: number; matches: PlanGradeTarget[] }[] = [];
-  for (const e of efforts) {
-    if (e.discipline !== plan.discipline) continue;
-    const grade = convert(e.gradeValue, e.gradeSystem, displaySystem);
-    if (grade == null) continue;
-    const matches = matchingTargets(targets, grade, e.holdType, e.steepness, dims);
-    if (matches.length === 0) continue;
-    items.push({ count: e.count, matches });
-  }
-  // Rajatuimmat (vähiten osumia) ensin, jotta ne ehtivät varata ainoan kotinsa
-  // ennen kuin joustavammat (useaan osuvat) effortit kuluttavat tilan.
-  items.sort((a, b) => a.matches.length - b.matches.length);
-
-  for (const it of items) {
-    let remaining = it.count;
-    // Täytä tarkin ensin; tasapelissä eniten tilaa jäljellä ensin (kapasiteettitietoinen).
-    const order = [...it.matches].sort((a, b) => {
-      const ds = specificity(b, dims) - specificity(a, dims);
-      if (ds !== 0) return ds;
-      const ra = a.target - (cur.get(keyOf(a)) ?? 0);
-      const rb = b.target - (cur.get(keyOf(b)) ?? 0);
-      return rb - ra;
-    });
-    for (const t of order) {
-      if (remaining <= 0) break;
-      const k = keyOf(t);
-      const room = Math.max(0, t.target - (cur.get(k) ?? 0));
-      const put = Math.min(room, remaining);
-      cur.set(k, (cur.get(k) ?? 0) + put);
-      remaining -= put;
-    }
-    // Ylimäärä (kaikki osumat täynnä) tarkimmalle osumalle → näkyy 'over'na.
-    if (remaining > 0) {
-      const k = keyOf(it.matches[0]);
-      cur.set(k, (cur.get(k) ?? 0) + remaining);
-    }
-  }
+  targets.forEach((t, j) => {
+    cur.set(dimsKey(t.grade, t.holdType, t.steepness, dims), byTarget[j]);
+  });
   return cur;
 }
 
@@ -247,14 +278,27 @@ export function evaluateLog(
 
   const dims = planDims(plan);
   const targets = [...planTargetsByGrade(plan, displaySystem).values()];
-  const matches = matchingTargets(targets, grade, holdType, steepness, dims);
-  if (matches.length === 0) return 'offplan';
 
-  const cur = currentByTarget(plan, efforts, displaySystem, targets);
-  let remainingCapacity = 0;
-  for (const t of matches) {
-    const key = dimsKey(t.grade, t.holdType, t.steepness, dims);
-    remainingCapacity += Math.max(0, t.target - (cur.get(key) ?? 0));
-  }
-  return addCount > remainingCapacity ? 'over' : 'ok';
+  // Mihin tavoitteisiin uusi nousu osuisi? Ei yhtään → suunnitelman ulkopuolinen.
+  const newMatches: number[] = [];
+  targets.forEach((t, i) => {
+    if (targetMatches(t, grade, holdType, steepness, dims)) newMatches.push(i);
+  });
+  if (newMatches.length === 0) return 'offplan';
+
+  // Vertaa optimaalista sijoitusta ilman ja kanssa uutta nousua: jos lisäys kasvattaa
+  // sijoittamatta jäävää ylimäärää, nousu ei mahdu mihinkään osuvaan tavoitteeseen → 'over'.
+  // (Optimaalinen jako ohjaa joustavat nousut pois jäykempien tieltä, joten täysi tarkka
+  // variantti ei estä kirjausta, jos jokin osuva tavoite ottaa sen vielä vastaan.)
+  const groups = buildGroups(plan, efforts, displaySystem, targets, dims);
+  const without = placeClimbs(groups, targets);
+  const totalWithout = groups.reduce((s, g) => s + g.count, 0);
+
+  const groupsWith = [...groups, { count: addCount, matches: newMatches }];
+  const withNew = placeClimbs(groupsWith, targets);
+  const totalWith = totalWithout + addCount;
+
+  const overflowWithout = totalWithout - without.placed;
+  const overflowWith = totalWith - withNew.placed;
+  return overflowWith > overflowWithout ? 'over' : 'ok';
 }
