@@ -101,6 +101,24 @@ export function attemptsForSession(sessionId: number) {
     .all();
 }
 
+/**
+ * Kaikki project-yritysrivit kaikilta sessioilta + projektin asteen tiedot
+ * (vertailutilastoja varten). Mirroroi `attemptsForSession`-liitoksen.
+ */
+export function allProjectAttemptsWithGrade() {
+  return db
+    .select({
+      sessionId: projectAttempts.sessionId,
+      discipline: projects.discipline,
+      gradeSystem: projects.gradeSystem,
+      gradeValue: projects.gradeValue,
+      attemptCount: projectAttempts.attemptCount,
+    })
+    .from(projectAttempts)
+    .innerJoin(projects, eq(projectAttempts.projectId, projects.id))
+    .all();
+}
+
 export function updateAttempt(id: number, fields: { attemptCount?: number; sent?: boolean }): void {
   db.update(projectAttempts).set(fields).where(eq(projectAttempts.id, id)).run();
 }
