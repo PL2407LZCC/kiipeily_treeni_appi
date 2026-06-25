@@ -92,6 +92,7 @@ export const fi = {
     gradeShiftLabel: 'Vaikeus (askelta)',
     preview: 'Tavoitteet',
     targetsEditHint: 'Hienosäädä jokaista astetta +/- napeilla. Muokkaimien (volyymi/vaikeus) muuttaminen palauttaa lähtöarvot.',
+    addGrade: 'Lisää aste',
     previewEmpty: 'Ei tavoitteita — valitse pohjasessio tai säädä muokkaimia.',
     use: 'Käytä suunnitelmaa',
     activeTitle: 'Suunnitelma',

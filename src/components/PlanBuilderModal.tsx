@@ -5,9 +5,11 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View 
 import { Spacing } from '@/constants/theme';
 import { Plans, Sessions } from '@/db/repositories';
 import { formatDateFi } from '@/domain/dates';
+import { gradeIndex } from '@/domain/grades';
 import { buildPlanTargets } from '@/domain/plan';
 import type {
   Discipline,
+  GradeSystem,
   PlanTarget,
   SessionEnvironment,
   SessionPlan,
@@ -17,6 +19,7 @@ import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
 import { fi } from '@/i18n/fi';
 import { bumpData } from '@/state/dataVersion';
+import { GradePicker } from './GradePicker';
 import { PrimaryButton } from './PrimaryButton';
 import { SegmentedControl } from './SegmentedControl';
 import { Stepper } from './Stepper';
@@ -97,6 +100,23 @@ export function PlanBuilderModal({
 
   const finalTargets = editedTargets.filter((t) => t.target > 0);
 
+  const [showGradePicker, setShowGradePicker] = useState(false);
+
+  // Asteikko uuden asteen lisäykselle: yleisin nykyisten tavoitteiden järjestelmä.
+  const primarySystem = useMemo<GradeSystem>(() => {
+    const counts = new Map<GradeSystem, number>();
+    for (const t of editedTargets) counts.set(t.gradeSystem, (counts.get(t.gradeSystem) ?? 0) + 1);
+    let best: GradeSystem = 'font';
+    let bestN = -1;
+    for (const [s, n] of counts) {
+      if (n > bestN) {
+        best = s;
+        bestN = n;
+      }
+    }
+    return best;
+  }, [editedTargets]);
+
   const adjustTarget = (t: PlanTarget, delta: number) => {
     setEditedTargets((prev) =>
       prev.map((x) =>
@@ -107,6 +127,27 @@ export function PlanBuilderModal({
     );
   };
 
+  /** Lisää (tai kasvata) aste, jota pohjasessiossa ei ollut. Lajitellaan vaikeuden mukaan. */
+  const addGrade = (gradeValue: string) => {
+    setEditedTargets((prev) => {
+      const exists = prev.some(
+        (t) => t.gradeSystem === primarySystem && t.gradeValue === gradeValue,
+      );
+      const next = exists
+        ? prev.map((t) =>
+            t.gradeSystem === primarySystem && t.gradeValue === gradeValue
+              ? { ...t, target: t.target + 1 }
+              : t,
+          )
+        : [...prev, { gradeSystem: primarySystem, gradeValue, target: 1 }];
+      return [...next].sort((a, b) =>
+        a.gradeSystem === b.gradeSystem
+          ? gradeIndex(a.gradeValue, a.gradeSystem) - gradeIndex(b.gradeValue, b.gradeSystem)
+          : a.gradeSystem.localeCompare(b.gradeSystem),
+      );
+    });
+  };
+
   const reset = () => {
     setSource('session');
     setBaselineId(null);
@@ -115,6 +156,7 @@ export function PlanBuilderModal({
     setGradeShift(0);
     setTemplateName('');
     setEditedTargets([]);
+    setShowGradePicker(false);
   };
 
   const close = () => {
@@ -326,6 +368,16 @@ export function PlanBuilderModal({
                 </View>
               ))}
 
+              <Pressable
+                onPress={() => setShowGradePicker((s) => !s)}
+                style={styles.addGradeBtn}>
+                <Ionicons name={showGradePicker ? 'remove' : 'add'} size={18} color={colors.text} />
+                <Text style={[styles.addGradeText, { color: colors.text }]}>{fi.plan.addGrade}</Text>
+              </Pressable>
+              {showGradePicker ? (
+                <GradePicker system={primarySystem} onPick={addGrade} />
+              ) : null}
+
               {/* Tallenna nykyinen suunnitelma uudelleenkäytettävänä mallina. */}
               <Text style={[styles.label, { color: colors.textSecondary }]}>
                 {fi.plan.saveAsTemplate}
@@ -397,6 +449,14 @@ const styles = StyleSheet.create({
   stepBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   stepText: { fontSize: 22, fontWeight: '700', lineHeight: 24 },
   targetCount: { fontSize: 16, fontWeight: '700', minWidth: 36, textAlign: 'center' },
+  addGradeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: Spacing.two,
+    marginTop: Spacing.one,
+  },
+  addGradeText: { fontSize: 14, fontWeight: '600' },
   addRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center', marginTop: Spacing.two },
   input: { flex: 1, borderRadius: 10, padding: Spacing.three, fontSize: 16 },
   footer: { flexDirection: 'row', gap: Spacing.two, padding: Spacing.three },
