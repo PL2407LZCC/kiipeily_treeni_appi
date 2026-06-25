@@ -10,7 +10,7 @@
 
 import { useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Spacing } from '@/constants/theme';
 import { holdTypeFromX, steepnessFromDy } from '@/domain/climbTags';
@@ -49,17 +49,20 @@ export function ClimbTagPrompt({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.backdrop}>
-        <View style={[styles.card, { backgroundColor: theme.background }]}>
-          {both ? (
-            <CombinedPicker onCommit={commit} />
-          ) : trackHoldType ? (
-            <HoldTypeButtons onChoose={(h) => commit(h, null)} />
-          ) : (
-            <SteepnessButtons onChoose={(s) => commit(null, s)} />
-          )}
+      {/* RNGH-eleet eivät saa kosketuksia RN Modalin sisällä ilman omaa juurta. */}
+      <GestureHandlerRootView style={styles.root}>
+        <View style={styles.backdrop}>
+          <View style={[styles.card, { backgroundColor: theme.background }]}>
+            {both ? (
+              <CombinedPicker onCommit={commit} />
+            ) : trackHoldType ? (
+              <HoldTypeButtons onChoose={(h) => commit(h, null)} />
+            ) : (
+              <SteepnessButtons onChoose={(s) => commit(null, s)} />
+            )}
+          </View>
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -197,6 +200,7 @@ function SteepnessButtons({ onChoose }: { onChoose: (s: Steepness | null) => voi
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
