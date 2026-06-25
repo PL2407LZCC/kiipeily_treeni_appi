@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
@@ -78,14 +78,34 @@ export function PlanBuilderModal({
   const baseline = baselines.find((b) => b.id === baselineId) ?? null;
   const template = templates.find((t) => t.id === templateId) ?? null;
 
-  // Lopulliset tavoitteet riippuvat lähteestä: session → buildPlanTargets,
+  // Lähteen + muokkaimien tuottamat lähtötavoitteet: session → buildPlanTargets,
   // template → mallin tallennetut tavoitteet sellaisenaan.
-  const targets = useMemo<PlanTarget[]>(() => {
+  const derivedTargets = useMemo<PlanTarget[]>(() => {
     if (source === 'template') return template?.targets ?? [];
     if (baselineId == null) return [];
     const efforts = Sessions.sessionEfforts(baselineId);
     return buildPlanTargets(efforts, { volumePct, gradeShift });
   }, [source, template, baselineId, volumePct, gradeShift]);
+
+  // Käsin hienosäädettävä työkopio. Lähde/muokkaimet asettavat lähtöarvot;
+  // sen jälkeen jokaista astetta voi säätää +/- erikseen. Muokkaimen muutos
+  // palauttaa lähtöarvot (derivedTargets vaihtuu → effect nollaa).
+  const [editedTargets, setEditedTargets] = useState<PlanTarget[]>([]);
+  useEffect(() => {
+    setEditedTargets(derivedTargets);
+  }, [derivedTargets]);
+
+  const finalTargets = editedTargets.filter((t) => t.target > 0);
+
+  const adjustTarget = (t: PlanTarget, delta: number) => {
+    setEditedTargets((prev) =>
+      prev.map((x) =>
+        x.gradeSystem === t.gradeSystem && x.gradeValue === t.gradeValue
+          ? { ...x, target: Math.max(0, x.target + delta) }
+          : x,
+      ),
+    );
+  };
 
   const reset = () => {
     setSource('session');
@@ -94,6 +114,7 @@ export function PlanBuilderModal({
     setVolumePct(0);
     setGradeShift(0);
     setTemplateName('');
+    setEditedTargets([]);
   };
 
   const close = () => {
@@ -102,14 +123,14 @@ export function PlanBuilderModal({
   };
 
   const use = () => {
-    if (targets.length === 0) return;
+    if (finalTargets.length === 0) return;
     if (source === 'template' && template != null) {
       onUse({
         discipline: template.discipline,
         label: template.name,
         sourceSessionId: null,
         modifier: {},
-        targets,
+        targets: finalTargets,
       });
       close();
       return;
@@ -117,27 +138,27 @@ export function PlanBuilderModal({
     if (baseline != null) {
       const label = `${baseline.theme ?? fi.home.noTheme} · ${formatDateFi(baseline.date)}`;
       onUse({
-        discipline: disciplineForTargets(targets),
+        discipline: disciplineForTargets(finalTargets),
         label,
         sourceSessionId: baseline.id,
         modifier: {
           ...(volumePct !== 0 ? { volumePct } : {}),
           ...(gradeShift !== 0 ? { gradeShift } : {}),
         },
-        targets,
+        targets: finalTargets,
       });
       close();
     }
   };
 
   const saveTemplate = () => {
-    if (targets.length === 0) return;
+    if (finalTargets.length === 0) return;
     const id = Plans.addTemplate({
       name: templateName,
-      discipline: disciplineForTargets(targets),
+      discipline: disciplineForTargets(finalTargets),
       theme,
       environment,
-      targets,
+      targets: finalTargets,
     });
     if (id != null) {
       setTemplateName('');
@@ -274,15 +295,34 @@ export function PlanBuilderModal({
             </>
           )}
 
-          {targets.length > 0 ? (
+          {editedTargets.length > 0 ? (
             <>
               <Text style={[styles.label, { color: colors.textSecondary }]}>{fi.plan.preview}</Text>
-              {targets.map((t) => (
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                {fi.plan.targetsEditHint}
+              </Text>
+              {editedTargets.map((t) => (
                 <View
                   key={`${t.gradeSystem}:${t.gradeValue}`}
                   style={[styles.targetRow, { backgroundColor: colors.backgroundElement }]}>
                   <Text style={[styles.targetGrade, { color: colors.text }]}>{t.gradeValue}</Text>
-                  <Text style={[styles.targetCount, { color: colors.text }]}>{t.target}×</Text>
+                  <View style={styles.targetEdit}>
+                    <Pressable
+                      onPress={() => adjustTarget(t, -1)}
+                      disabled={t.target <= 0}
+                      style={[
+                        styles.stepBtn,
+                        { backgroundColor: colors.background, opacity: t.target <= 0 ? 0.4 : 1 },
+                      ]}>
+                      <Text style={[styles.stepText, { color: colors.text }]}>−</Text>
+                    </Pressable>
+                    <Text style={[styles.targetCount, { color: colors.text }]}>{t.target}×</Text>
+                    <Pressable
+                      onPress={() => adjustTarget(t, 1)}
+                      style={[styles.stepBtn, { backgroundColor: colors.background }]}>
+                      <Text style={[styles.stepText, { color: colors.text }]}>+</Text>
+                    </Pressable>
+                  </View>
                 </View>
               ))}
 
@@ -307,7 +347,7 @@ export function PlanBuilderModal({
                   label={fi.plan.saveTemplate}
                   onPress={saveTemplate}
                   variant="secondary"
-                  disabled={templateName.trim().length === 0}
+                  disabled={templateName.trim().length === 0 || finalTargets.length === 0}
                 />
               </View>
             </>
@@ -320,7 +360,7 @@ export function PlanBuilderModal({
 
         <View style={styles.footer}>
           <PrimaryButton label={fi.common.cancel} onPress={close} variant="secondary" flex />
-          <PrimaryButton label={fi.plan.use} onPress={use} disabled={targets.length === 0} flex />
+          <PrimaryButton label={fi.plan.use} onPress={use} disabled={finalTargets.length === 0} flex />
         </View>
       </View>
     </Modal>
@@ -353,7 +393,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   targetGrade: { fontSize: 16, fontWeight: '700' },
-  targetCount: { fontSize: 16, fontWeight: '700' },
+  targetEdit: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  stepBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  stepText: { fontSize: 22, fontWeight: '700', lineHeight: 24 },
+  targetCount: { fontSize: 16, fontWeight: '700', minWidth: 36, textAlign: 'center' },
   addRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center', marginTop: Spacing.two },
   input: { flex: 1, borderRadius: 10, padding: Spacing.three, fontSize: 16 },
   footer: { flexDirection: 'row', gap: Spacing.two, padding: Spacing.three },
