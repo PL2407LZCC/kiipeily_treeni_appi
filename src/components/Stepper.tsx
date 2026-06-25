@@ -8,14 +8,16 @@ interface StepperProps {
   onChange: (n: number) => void;
   min?: number;
   max?: number;
+  /** Askelkoko napeille (oletus 1). Esim. volyymi-% käyttää 10. */
+  step?: number;
   label?: string;
 }
 
 /** Iso määrävalitsin (askelnapit) — kosketusystävällinen, ei näppäimistöä. */
-export function Stepper({ value, onChange, min = 1, max = 99, label }: StepperProps) {
+export function Stepper({ value, onChange, min = 1, max = 99, step = 1, label }: StepperProps) {
   const theme = useTheme();
-  const dec = () => onChange(Math.max(min, value - 1));
-  const inc = () => onChange(Math.min(max, value + 1));
+  const dec = () => onChange(Math.max(min, value - step));
+  const inc = () => onChange(Math.min(max, value + step));
 
   return (
     <View style={styles.wrap}>

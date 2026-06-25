@@ -22,10 +22,11 @@ export const BACKUP_APP_ID = 'kiipeily-treeni-appi';
 // v2: lisätty attempt_logs (irralliset yritykset).
 // v3: lisätty hold_type-sarakkeet (send_logs/attempt_logs/projects).
 // v4: lisätty session_themes-taulu sekä sessions.theme/environment-sarakkeet.
+// v5: lisätty sessions.plan-sarake (guided sessions; kulkee sessions-rivien mukana).
 // Sarakkeet kulkevat olemassa olevien taulujen mukana; uudet taulut omana avaimenaan.
 // Vanhat tiedostot tuodaan edelleen (puuttuvat kentät jäävät tyhjiksi/null, ja
 // puuttuva session_themes -avain jättää nykyiset teemat ennalleen).
-export const BACKUP_VERSION = 4;
+export const BACKUP_VERSION = 5;
 
 interface BackupFile {
   app: string;

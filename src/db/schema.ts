@@ -26,6 +26,7 @@ export const sessions = sqliteTable('sessions', {
   notes: text('notes'),
   startedAt: text('started_at').notNull(),
   endedAt: text('ended_at'),
+  plan: text('plan'), // SessionPlan JSON-merkkijonona, valinnainen (guided sessions)
 });
 
 /** Valittavissa olevat session teemat (oletukset + käyttäjän lisäämät). */
@@ -152,7 +153,8 @@ export const CREATE_TABLES_SQL = `
     environment TEXT,
     notes TEXT,
     started_at TEXT NOT NULL,
-    ended_at TEXT
+    ended_at TEXT,
+    plan TEXT
   );
   CREATE TABLE IF NOT EXISTS session_themes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

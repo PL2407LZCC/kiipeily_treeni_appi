@@ -44,6 +44,7 @@ function runMigrations(): void {
   ensureColumn('app_settings', 'track_hold_type', 'track_hold_type INTEGER NOT NULL DEFAULT 0');
   ensureColumn('sessions', 'theme', 'theme TEXT');
   ensureColumn('sessions', 'environment', 'environment TEXT');
+  ensureColumn('sessions', 'plan', 'plan TEXT');
 }
 
 /** Kylvä oletusteemat vain jos lista on tyhjä (ei palauta käyttäjän poistamia). */
