@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { SessionCompare } from '@/components/SessionCompare';
 import { Spacing } from '@/constants/theme';
 import { AttemptLogs, Attempts, Projects, Sends, Sessions, Supplemental } from '@/db/repositories';
 import { formatDateFi, formatTimeFi } from '@/domain/dates';
@@ -32,6 +33,10 @@ export default function SessionDetailScreen() {
   const attempts = useDbQuery(() => (validId != null ? Attempts.attemptsForSession(validId) : []), [validId]);
   const supplemental = useDbQuery(
     () => (validId != null ? Supplemental.listSupplementalForSession(validId) : []),
+    [validId],
+  );
+  const efforts = useDbQuery(
+    () => (validId != null ? Sessions.sessionEfforts(validId) : []),
     [validId],
   );
 
@@ -196,6 +201,9 @@ export default function SessionDetailScreen() {
             />
           ))
         )}
+
+        {/* Vertailu toiseen sessioon */}
+        <SessionCompare sessionId={session.id} sessionDate={session.date} effortsA={efforts} />
 
         <View style={{ marginTop: Spacing.four }}>
           <PrimaryButton
