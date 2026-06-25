@@ -108,6 +108,13 @@ export const fi = {
     saveTemplatePlaceholder: 'Mallin nimi',
     saveTemplate: 'Tallenna',
     templateSaved: 'Malli tallennettu',
+    // Live-edistyminen + pehmeä enforcement (PR6)
+    progressTitle: 'Suunnitelman edistyminen',
+    logAnyway: 'Kirjaa silti',
+    overTitle: 'Tavoite ylittyy',
+    overMsg: 'Tämä kirjaus ylittää tämän asteen tavoitteen. Kirjataanko silti?',
+    offPlanTitle: 'Suunnitelman ulkopuolinen aste',
+    offPlanMsg: 'Tämä aste ei kuulu suunnitelmaan. Kirjataanko silti?',
   },
   project: {
     name: 'Nimi',
