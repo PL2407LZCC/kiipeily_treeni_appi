@@ -129,3 +129,18 @@ export interface SessionPlan {
   modifier: { volumePct?: number; gradeShift?: number };
   targets: PlanTarget[];
 }
+
+/**
+ * Tallennettu, uudelleenkäytettävä treenisuunnitelmamalli (template). Toisin kuin
+ * SessionPlan (yhden session JSON sessions.plan-sarakkeessa), nämä elävät omassa
+ * training_plans-taulussaan ja niistä voi aloittaa uusia sessioita.
+ */
+export interface TrainingPlanTemplate {
+  id: number;
+  name: string;
+  discipline: Discipline;
+  theme: string | null;
+  environment: SessionEnvironment | null;
+  targets: PlanTarget[];
+  createdAt: string;
+}

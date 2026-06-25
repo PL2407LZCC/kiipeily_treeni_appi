@@ -128,6 +128,20 @@ export const supplementalEntries = sqliteTable('supplemental_entries', {
   createdAt: text('created_at').notNull(),
 });
 
+/**
+ * Tallennetut treenisuunnitelmamallit (templates). Targetit JSON-merkkijonona.
+ * Toisin kuin sessions.plan (yksi sessio), nämä ovat uudelleenkäytettäviä.
+ */
+export const trainingPlans = sqliteTable('training_plans', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  discipline: text('discipline').$type<Discipline>().notNull(), // boulder | sport
+  theme: text('theme'),
+  environment: text('environment').$type<SessionEnvironment>(), // indoor | outdoor | null
+  targets: text('targets').notNull(), // PlanTarget[] JSON-merkkijonona
+  createdAt: text('created_at').notNull(),
+});
+
 /** Yksirivinen asetustaulu (id = 1). */
 export const appSettings = sqliteTable('app_settings', {
   id: integer('id').primaryKey().default(1),
@@ -220,6 +234,15 @@ export const CREATE_TABLES_SQL = `
     weight REAL,
     duration_sec INTEGER,
     notes TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS training_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    discipline TEXT NOT NULL,
+    theme TEXT,
+    environment TEXT,
+    targets TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS app_settings (

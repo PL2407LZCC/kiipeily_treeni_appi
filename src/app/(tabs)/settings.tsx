@@ -7,7 +7,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { Spacing } from '@/constants/theme';
 import { exportBackup, pickAndParseBackup, restoreBackup } from '@/backup/exportImport';
-import { Themes } from '@/db/repositories';
+import { Plans, Themes } from '@/db/repositories';
 import { nowIso } from '@/domain/dates';
 import type { GradeSystem } from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
@@ -20,7 +20,13 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const settings = useSettings();
   const themes = useDbQuery(() => Themes.listThemes(), []);
+  const plans = useDbQuery(() => Plans.listTemplates(), []);
   const [newTheme, setNewTheme] = useState('');
+
+  const removePlan = (id: number) => {
+    Plans.deleteTemplate(id);
+    bumpData();
+  };
 
   const addTheme = () => {
     const added = Themes.addTheme(newTheme);
@@ -129,6 +135,29 @@ export default function SettingsScreen() {
           />
           <PrimaryButton label={fi.settings.addTheme} onPress={addTheme} />
         </View>
+
+        {/* Treenisuunnitelmat (mallit) */}
+        <Text style={[styles.section, { color: theme.textSecondary, marginTop: Spacing.four }]}>
+          {fi.settings.plans}
+        </Text>
+        <Text style={[styles.hint, { color: theme.textSecondary }]}>{fi.settings.plansHint}</Text>
+        {plans.length === 0 ? (
+          <Text style={[styles.hint, { color: theme.textSecondary }]}>{fi.settings.noPlans}</Text>
+        ) : (
+          plans.map((p) => (
+            <View key={p.id} style={[styles.themeRow, { backgroundColor: theme.backgroundElement }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.label, { color: theme.text }]}>{p.name}</Text>
+                <Text style={[styles.hint, { color: theme.textSecondary }]}>
+                  {p.targets.length} {fi.plan.preview.toLowerCase()}
+                </Text>
+              </View>
+              <Pressable onPress={() => removePlan(p.id)} hitSlop={8}>
+                <Ionicons name="trash-outline" size={20} color={theme.textSecondary} />
+              </Pressable>
+            </View>
+          ))
+        )}
 
         {/* Varmuuskopiointi */}
         <Text style={[styles.section, { color: theme.textSecondary, marginTop: Spacing.four }]}>
