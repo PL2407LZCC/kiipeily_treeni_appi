@@ -64,7 +64,7 @@ export const fi = {
     environmentLabel: 'Ympäristö',
     modeSend: 'Send',
     modeProject: 'Projecting',
-    disciplineAndMode: 'Laji ja tila',
+    controlsSection: 'Säädöt',
     tapToLog: 'Napauta = send · pidä pohjassa = yritys',
     quantity: 'Määrä',
     flash: 'Flash',

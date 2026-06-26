@@ -242,6 +242,22 @@ export default function HomeScreen() {
     );
   }
 
+  // Yhteenveto "Säädöt"-osion otsikkoriville (näkyy suljettuna) — sis. flash-tila,
+  // jotta päällä oleva flash ei jää piiloon vaikka osio on kiinni.
+  const controlsSummary = [
+    fi.discipline[active.discipline],
+    active.mode === 'send' ? fi.home.modeSend : fi.home.modeProject,
+    ...(active.mode === 'send'
+      ? [
+          ...(active.discipline === 'boulder'
+            ? [active.boulderDisplaySystem === 'font' ? 'Font' : 'V']
+            : []),
+          ...(active.quantity > 1 ? [`${active.quantity}×`] : []),
+          ...(active.flash ? [fi.home.flash] : []),
+        ]
+      : []),
+  ].join(' · ');
+
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: theme.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.body}>
@@ -259,13 +275,10 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Laji + tila — piilotettu avattavan osion taakse (suunnitelma näkyy
-            "Suunnitelman edistyminen" -paneelissa, joten erillistä korttia ei tarvita). */}
-        <Collapsible
-          title={fi.home.disciplineAndMode}
-          summary={`${fi.discipline[active.discipline]} · ${
-            active.mode === 'send' ? fi.home.modeSend : fi.home.modeProject
-          }`}>
+        {/* Säädöt — laji, tila ja kirjausvalinnat (asteikko, määrä, flash) avattavan osion
+            takana. Suunnitelma näkyy "Suunnitelman edistyminen" -paneelissa, joten erillistä
+            korttia ei tarvita. */}
+        <Collapsible title={fi.home.controlsSection} summary={controlsSummary}>
           <SegmentedControl<Discipline>
             segments={[
               { value: 'boulder', label: fi.discipline.boulder },
@@ -283,6 +296,46 @@ export default function HomeScreen() {
             value={active.mode}
             onChange={(m) => active.setMode(m)}
           />
+          {active.mode === 'send' ? (
+            <>
+              {active.discipline === 'boulder' ? (
+                <SegmentedControl
+                  segments={[
+                    { value: 'font', label: 'Font' },
+                    { value: 'v', label: 'V' },
+                  ]}
+                  value={active.boulderDisplaySystem}
+                  onChange={active.setBoulderDisplaySystem}
+                />
+              ) : null}
+              <View style={styles.controlsRow}>
+                <Stepper
+                  value={active.quantity}
+                  onChange={active.setQuantity}
+                  label={fi.home.quantity}
+                />
+                <Pressable
+                  onPress={active.toggleFlash}
+                  style={[
+                    styles.flashBtn,
+                    { backgroundColor: active.flash ? '#f1c40f' : theme.background },
+                  ]}>
+                  <Ionicons
+                    name="flash"
+                    size={20}
+                    color={active.flash ? '#000' : theme.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.flashText,
+                      { color: active.flash ? '#000' : theme.textSecondary },
+                    ]}>
+                    {fi.home.flash}
+                  </Text>
+                </Pressable>
+              </View>
+            </>
+          ) : null}
         </Collapsible>
 
         {active.mode === 'send' ? (
@@ -544,36 +597,6 @@ function SendMode({ sessionId }: { sessionId: number }) {
 
   return (
     <View style={styles.section}>
-      {active.discipline === 'boulder' ? (
-        <SegmentedControl
-          segments={[
-            { value: 'font', label: 'Font' },
-            { value: 'v', label: 'V' },
-          ]}
-          value={active.boulderDisplaySystem}
-          onChange={active.setBoulderDisplaySystem}
-        />
-      ) : null}
-
-      <View style={styles.controlsRow}>
-        <Stepper value={active.quantity} onChange={active.setQuantity} label={fi.home.quantity} />
-        <Pressable
-          onPress={active.toggleFlash}
-          style={[
-            styles.flashBtn,
-            { backgroundColor: active.flash ? '#f1c40f' : theme.backgroundElement },
-          ]}>
-          <Ionicons
-            name="flash"
-            size={20}
-            color={active.flash ? '#000' : theme.textSecondary}
-          />
-          <Text style={[styles.flashText, { color: active.flash ? '#000' : theme.textSecondary }]}>
-            {fi.home.flash}
-          </Text>
-        </Pressable>
-      </View>
-
       {planActive && progressRows.length > 0 ? (
         <View style={[styles.progressPanel, { backgroundColor: theme.backgroundElement }]}>
           <Text style={[styles.progressTitle, { color: theme.text }]}>
