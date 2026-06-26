@@ -1,8 +1,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
-import type { GradeComparisonRow } from '@/domain/aggregate';
+import { percentChange, type GradeComparisonRow } from '@/domain/aggregate';
 import { useTheme } from '@/hooks/use-theme';
+
+/** Muotoile prosenttimuutos näytölle; null (lähtötaso 0) → "—". */
+function pctLabel(a: number, b: number): string {
+  const p = percentChange(a, b);
+  return p == null ? '—' : `${p > 0 ? '+' : ''}${p} %`;
+}
 
 interface ComparisonBarChartProps {
   rows: GradeComparisonRow[];
@@ -59,13 +65,22 @@ export function ComparisonBarChart({ rows, labelA, labelB }: ComparisonBarChartP
               <Text style={[styles.value, { color: theme.textSecondary }]}>{r.b}</Text>
             </View>
           </View>
-          <Text
-            style={[
-              styles.delta,
-              { color: r.delta > 0 ? '#2e9e5b' : r.delta < 0 ? '#d1495b' : theme.textSecondary },
-            ]}>
-            {r.delta > 0 ? `+${r.delta}` : r.delta}
-          </Text>
+          <View style={styles.deltaCol}>
+            <Text
+              style={[
+                styles.delta,
+                { color: r.delta > 0 ? '#2e9e5b' : r.delta < 0 ? '#d1495b' : theme.textSecondary },
+              ]}>
+              {r.delta > 0 ? `+${r.delta}` : r.delta}
+            </Text>
+            <Text
+              style={[
+                styles.pct,
+                { color: r.delta > 0 ? '#2e9e5b' : r.delta < 0 ? '#d1495b' : theme.textSecondary },
+              ]}>
+              {pctLabel(r.a, r.b)}
+            </Text>
+          </View>
         </View>
       ))}
     </View>
@@ -86,5 +101,7 @@ const styles = StyleSheet.create({
   track: { flex: 1, height: 14, borderRadius: 5, overflow: 'hidden' },
   bar: { height: '100%', borderRadius: 5, minWidth: 3 },
   value: { width: 26, fontSize: 12, textAlign: 'right' },
-  delta: { width: 36, fontSize: 13, fontWeight: '700', textAlign: 'right' },
+  deltaCol: { width: 50, alignItems: 'flex-end' },
+  delta: { fontSize: 13, fontWeight: '700', textAlign: 'right' },
+  pct: { fontSize: 10, textAlign: 'right' },
 });
