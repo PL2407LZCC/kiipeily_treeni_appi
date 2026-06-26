@@ -122,6 +122,16 @@ export default function StatsScreen() {
     workoutDelta > 0 ? '#2e9e5b' : workoutDelta < 0 ? '#d1495b' : theme.text;
   const fmtPct = (pct: number | null) => (pct == null ? '—' : `${pct > 0 ? '+' : ''}${pct} %`);
 
+  // Yhteenvedot kiinniolevien jaksovertailu-osioiden otsikkoriveille.
+  const periodsSummary = `${fi.stats.periods[periodA.preset]} → ${fi.stats.periods[periodB.preset]}`;
+  const filterSummary =
+    [
+      holdFilter !== 'all' ? fi.holdType[holdFilter] : null,
+      steepFilter !== 'all' ? fi.steepness[steepFilter] : null,
+    ]
+      .filter(Boolean)
+      .join(' · ') || fi.stats.filterAll;
+
   const totalRows = compareTallies(
     tallyByGrade(effortsA, { metric: 'total', discipline, displaySystem }),
     tallyByGrade(effortsB, { metric: 'total', discipline, displaySystem }),
@@ -153,8 +163,8 @@ export default function StatsScreen() {
             onChange={setDiscipline}
           />
 
-          {/* Volyymi — avattava, pidetään ylhäällä (oletuksena auki). */}
-          <Collapsible title={fi.stats.volume} defaultOpen>
+          {/* Volyymi — avattava, pidetään ylhäällä (oletuksena kiinni). */}
+          <Collapsible title={fi.stats.volume}>
             <SegmentedControl<VolumePeriod>
               segments={[
                 { value: 'day', label: fi.stats.perDay },
@@ -178,42 +188,50 @@ export default function StatsScreen() {
             {fi.stats.comparisonNote}
           </Text>
 
-          <Text style={[styles.subLabel, { color: theme.textSecondary }]}>{fi.stats.periodA}</Text>
-          <PeriodPicker value={periodA} onChange={setPeriodA} />
-          <Text style={[styles.subLabel, { color: theme.textSecondary }]}>{fi.stats.periodB}</Text>
-          <PeriodPicker value={periodB} onChange={setPeriodB} />
+          {/* Jaksot (Jakso A + Jakso B) avattavan osion takana. */}
+          <Collapsible title={fi.stats.periodsSection} summary={periodsSummary}>
+            <Text style={[styles.subLabel, { color: theme.textSecondary }]}>{fi.stats.periodA}</Text>
+            <PeriodPicker value={periodA} onChange={setPeriodA} />
+            <Text style={[styles.subLabel, { color: theme.textSecondary }]}>{fi.stats.periodB}</Text>
+            <PeriodPicker value={periodB} onChange={setPeriodB} />
+          </Collapsible>
 
-          {hasHoldData ? (
-            <>
-              <Text style={[styles.subLabel, { color: theme.textSecondary }]}>
-                {fi.stats.filterHoldType}
-              </Text>
-              <SegmentedControl<HoldType | 'all'>
-                segments={[
-                  { value: 'all', label: fi.stats.filterAll },
-                  { value: 'crimpy', label: fi.holdType.crimpy },
-                  { value: 'slopy', label: fi.holdType.slopy },
-                ]}
-                value={holdFilter}
-                onChange={setHoldFilter}
-              />
-            </>
-          ) : null}
-          {hasSteepData ? (
-            <>
-              <Text style={[styles.subLabel, { color: theme.textSecondary }]}>
-                {fi.stats.filterSteepness}
-              </Text>
-              <SegmentedControl<Steepness | 'all'>
-                segments={[
-                  { value: 'all', label: fi.stats.filterAll },
-                  { value: 'slab', label: fi.steepness.slab },
-                  { value: 'overhang', label: fi.steepness.overhang },
-                ]}
-                value={steepFilter}
-                onChange={setSteepFilter}
-              />
-            </>
+          {/* Suodattimet (otetyyppi + jyrkkyys) omassa avattavassa osiossaan. */}
+          {hasHoldData || hasSteepData ? (
+            <Collapsible title={fi.stats.filtersSection} summary={filterSummary}>
+              {hasHoldData ? (
+                <>
+                  <Text style={[styles.subLabel, { color: theme.textSecondary }]}>
+                    {fi.stats.filterHoldType}
+                  </Text>
+                  <SegmentedControl<HoldType | 'all'>
+                    segments={[
+                      { value: 'all', label: fi.stats.filterAll },
+                      { value: 'crimpy', label: fi.holdType.crimpy },
+                      { value: 'slopy', label: fi.holdType.slopy },
+                    ]}
+                    value={holdFilter}
+                    onChange={setHoldFilter}
+                  />
+                </>
+              ) : null}
+              {hasSteepData ? (
+                <>
+                  <Text style={[styles.subLabel, { color: theme.textSecondary }]}>
+                    {fi.stats.filterSteepness}
+                  </Text>
+                  <SegmentedControl<Steepness | 'all'>
+                    segments={[
+                      { value: 'all', label: fi.stats.filterAll },
+                      { value: 'slab', label: fi.steepness.slab },
+                      { value: 'overhang', label: fi.steepness.overhang },
+                    ]}
+                    value={steepFilter}
+                    onChange={setSteepFilter}
+                  />
+                </>
+              ) : null}
+            </Collapsible>
           ) : null}
 
           {!hasComparisonData ? (
