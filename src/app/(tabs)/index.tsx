@@ -629,37 +629,35 @@ function SendMode({ sessionId }: { sessionId: number }) {
         </>
       )}
 
-      <View style={styles.listHeaderRow}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{fi.home.loggedSends}</Text>
+      <Collapsible title={fi.home.loggedSends} summary={String(sends.length)}>
         {active.lastSendId != null ? (
           <Pressable onPress={undo} style={styles.undoBtn}>
             <Ionicons name="arrow-undo" size={16} color={theme.text} />
             <Text style={[styles.undoText, { color: theme.text }]}>{fi.home.undoLast}</Text>
           </Pressable>
         ) : null}
-      </View>
-
-      {sends.length === 0 ? (
-        <Text style={[styles.muted, { color: theme.textSecondary }]}>{fi.home.noSends}</Text>
-      ) : (
-        sends.map((s) => (
-          <View key={s.id} style={[styles.entryRow, { backgroundColor: theme.backgroundElement }]}>
-            <Text style={[styles.entryGrade, { color: theme.text }]}>
-              {s.count > 1 ? `${s.count}× ` : ''}
-              {s.gradeValue}
-            </Text>
-            {s.flash ? <Ionicons name="flash" size={16} color="#f1c40f" /> : null}
-            <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
-              {fi.discipline[s.discipline as Discipline]}
-              {holdTypeLabel(s.holdType) ? ` · ${holdTypeLabel(s.holdType)}` : ''}
-              {steepnessLabel(s.steepness) ? ` · ${steepnessLabel(s.steepness)}` : ''}
-            </Text>
-            <Pressable onPress={() => remove(s.id)} hitSlop={8} style={styles.trash}>
-              <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
-            </Pressable>
-          </View>
-        ))
-      )}
+        {sends.length === 0 ? (
+          <Text style={[styles.muted, { color: theme.textSecondary }]}>{fi.home.noSends}</Text>
+        ) : (
+          sends.map((s) => (
+            <View key={s.id} style={[styles.entryRow, { backgroundColor: theme.background }]}>
+              <Text style={[styles.entryGrade, { color: theme.text }]}>
+                {s.count > 1 ? `${s.count}× ` : ''}
+                {s.gradeValue}
+              </Text>
+              {s.flash ? <Ionicons name="flash" size={16} color="#f1c40f" /> : null}
+              <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
+                {fi.discipline[s.discipline as Discipline]}
+                {holdTypeLabel(s.holdType) ? ` · ${holdTypeLabel(s.holdType)}` : ''}
+                {steepnessLabel(s.steepness) ? ` · ${steepnessLabel(s.steepness)}` : ''}
+              </Text>
+              <Pressable onPress={() => remove(s.id)} hitSlop={8} style={styles.trash}>
+                <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
+              </Pressable>
+            </View>
+          ))
+        )}
+      </Collapsible>
 
       {attempts.length > 0 ? (
         <>

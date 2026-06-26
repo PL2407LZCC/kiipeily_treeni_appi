@@ -342,27 +342,6 @@ export function PlanBuilderModal({
               {baselineId != null ? (
                 <>
                   <Text style={[styles.label, { color: colors.textSecondary }]}>
-                    {fi.plan.modifiers}
-                  </Text>
-                  <View style={styles.modRow}>
-                    <Stepper
-                      value={volumePct}
-                      onChange={setVolumePct}
-                      min={VOLUME_MIN}
-                      max={VOLUME_MAX}
-                      step={VOLUME_STEP}
-                      label={fi.plan.volumeLabel}
-                    />
-                    <Stepper
-                      value={gradeShift}
-                      onChange={setGradeShift}
-                      min={GRADE_SHIFT_MIN}
-                      max={GRADE_SHIFT_MAX}
-                      label={fi.plan.gradeShiftLabel}
-                    />
-                  </View>
-
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>
                     {fi.plan.dimsLabel}
                   </Text>
                   <View style={[styles.dimRow, { backgroundColor: colors.backgroundElement }]}>
@@ -441,6 +420,31 @@ export function PlanBuilderModal({
                 onChange={setMode}
               />
               <Text style={[styles.hint, { color: colors.textSecondary }]}>{fi.plan.modeHint}</Text>
+
+              {source === 'session' ? (
+                <>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    {fi.plan.modifiers}
+                  </Text>
+                  <View style={styles.modRow}>
+                    <Stepper
+                      value={volumePct}
+                      onChange={setVolumePct}
+                      min={VOLUME_MIN}
+                      max={VOLUME_MAX}
+                      step={VOLUME_STEP}
+                      label={fi.plan.volumeLabel}
+                    />
+                    <Stepper
+                      value={gradeShift}
+                      onChange={setGradeShift}
+                      min={GRADE_SHIFT_MIN}
+                      max={GRADE_SHIFT_MAX}
+                      label={fi.plan.gradeShiftLabel}
+                    />
+                  </View>
+                </>
+              ) : null}
 
               <Text style={[styles.label, { color: colors.textSecondary }]}>{fi.plan.preview}</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
