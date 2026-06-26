@@ -178,7 +178,18 @@ export default function HomeScreen() {
               </Text>
               {draftPlan ? (
                 <View style={[styles.planCard, { backgroundColor: theme.backgroundElement }]}>
-                  <Text style={[styles.planCardTitle, { color: theme.text }]}>{draftPlan.label}</Text>
+                  <View style={styles.planTitleRow}>
+                    <Text style={[styles.planCardTitle, { color: theme.text }]}>
+                      {draftPlan.label}
+                    </Text>
+                    {draftPlan.mode === 'exact' ? (
+                      <View style={[styles.modeBadge, { backgroundColor: theme.text }]}>
+                        <Text style={[styles.modeBadgeText, { color: theme.background }]}>
+                          {fi.plan.exactBadge}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <View style={styles.planTargets}>
                     {draftPlan.targets.map((t) => (
                       <View
@@ -254,9 +265,18 @@ export default function HomeScreen() {
         {/* Treenisuunnitelma (read-only) — vain jos sessiolle on tallennettu suunnitelma */}
         {activePlan && activePlan.targets.length > 0 ? (
           <View style={[styles.planCard, { backgroundColor: theme.backgroundElement }]}>
-            <Text style={[styles.planCardTitle, { color: theme.text }]}>
-              {fi.plan.activeTitle}
-            </Text>
+            <View style={styles.planTitleRow}>
+              <Text style={[styles.planCardTitle, { color: theme.text }]}>
+                {fi.plan.activeTitle}
+              </Text>
+              {activePlan.mode === 'exact' ? (
+                <View style={[styles.modeBadge, { backgroundColor: theme.text }]}>
+                  <Text style={[styles.modeBadgeText, { color: theme.background }]}>
+                    {fi.plan.exactBadge}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={[styles.muted, { color: theme.textSecondary }]}>{activePlan.label}</Text>
             <View style={styles.planTargets}>
               {activePlan.targets.map((t) => (
@@ -361,6 +381,14 @@ function SendMode({ sessionId }: { sessionId: number }) {
   const planDims = planActive ? plan.dims : undefined;
   const planHasDims = !!(planDims?.holdType || planDims?.steepness);
 
+  // Exact-tila: kova katto. Vain asteet joilla on vielä tilaa näkyvät astevalikossa;
+  // täyttyneet poistuvat. Ylitystä/suunnitelman ulkopuolista ei voi ohittaa.
+  const planExact = planActive && plan.mode === 'exact';
+  const allowedGrades = planExact
+    ? [...new Set(progressRows.filter((r) => r.current < r.target).map((r) => r.grade))]
+    : undefined;
+  const exactComplete = planExact && allowedGrades != null && allowedGrades.length === 0;
+
   // Efektiiviset seuranta-asetukset: globaali asetus TAI suunnitelman ulottuvuus pakottaa
   // ulottuvuuden kaappauksen tälle sessiolle, vaikka globaali asetus olisi pois.
   const effTrackHoldType = settings.trackHoldType || !!planDims?.holdType;
@@ -410,18 +438,37 @@ function SendMode({ sessionId }: { sessionId: number }) {
     bumpData();
   };
 
-  // Pehmeä enforcement: arvioi ENNEN insertointia; varoita + salli ohitus.
-  const confirmThenLog = (verdict: LogVerdict, proceed: () => void) => {
+  // Enforcement: arvioi ENNEN insertointia. Loose → varoita + salli ohitus;
+  // exact → kova katto (estä kokonaan, ei "kirjaa silti"). Palauttaa true jos
+  // kirjaus etenee (tai eteni), false jos exact-tila esti sen.
+  const confirmThenLog = (verdict: LogVerdict, proceed: () => void): boolean => {
     if (verdict === 'ok') {
       proceed();
-      return;
+      return true;
     }
     const title = verdict === 'over' ? fi.plan.overTitle : fi.plan.offPlanTitle;
+    if (planExact) {
+      const message = verdict === 'over' ? fi.plan.overMsgExact : fi.plan.offPlanMsgExact;
+      tapFeedback();
+      Alert.alert(title, message, [{ text: fi.common.ok }]);
+      return false;
+    }
     const message = verdict === 'over' ? fi.plan.overMsg : fi.plan.offPlanMsg;
     Alert.alert(title, message, [
       { text: fi.common.cancel, style: 'cancel' },
       { text: fi.plan.logAnyway, onPress: proceed },
     ]);
+    return true;
+  };
+
+  // Exact-tilassa: onko (aste, otetyyppi, jyrkkyys) -variantti vielä auki (evaluateLog 'ok')?
+  // Käytetään promptin painikkeiden estoon yhden ulottuvuuden tap-tiloissa.
+  const variantOpen = (grade: string, holdType: HoldType | null, steepness: Steepness | null): boolean => {
+    if (!planActive) return true;
+    return (
+      evaluateLog(plan, efforts, active.discipline, system, system, grade, 1, holdType, steepness) ===
+      'ok'
+    );
   };
 
   // Aloita kirjaus: grade-only-suunnitelmassa enforcement arvioidaan jo tässä (aste tiedossa);
@@ -590,15 +637,24 @@ function SendMode({ sessionId }: { sessionId: number }) {
         </View>
       ) : null}
 
-      <Text style={[styles.hint, { color: theme.textSecondary }]}>{fi.home.tapToLog}</Text>
-      <GradePicker
-        system={system}
-        secondarySystem={secondarySystem}
-        showSecondary={settings.showSecondaryGrade}
-        onPick={logSend}
-        onLongPress={logAttempt}
-        longPressDelayMs={ATTEMPT_LONG_PRESS_MS}
-      />
+      {exactComplete ? (
+        <Text style={[styles.hint, { color: '#2ecc71', fontWeight: '700' }]}>
+          {fi.plan.exactComplete}
+        </Text>
+      ) : (
+        <>
+          <Text style={[styles.hint, { color: theme.textSecondary }]}>{fi.home.tapToLog}</Text>
+          <GradePicker
+            system={system}
+            secondarySystem={secondarySystem}
+            showSecondary={settings.showSecondaryGrade}
+            onPick={logSend}
+            onLongPress={logAttempt}
+            longPressDelayMs={ATTEMPT_LONG_PRESS_MS}
+            allowedGrades={allowedGrades}
+          />
+        </>
+      )}
 
       <View style={styles.listHeaderRow}>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>{fi.home.loggedSends}</Text>
@@ -673,6 +729,16 @@ function SendMode({ sessionId }: { sessionId: number }) {
         trackSteepness={effTrackSteepness}
         onCommit={commitTags}
         onCancel={cancelTags}
+        isHoldTypeOpen={
+          planExact && pending != null && effTrackHoldType && !effTrackSteepness
+            ? (h) => variantOpen(pending.grade, h, null)
+            : undefined
+        }
+        isSteepnessOpen={
+          planExact && pending != null && effTrackSteepness && !effTrackHoldType
+            ? (s) => variantOpen(pending.grade, null, s)
+            : undefined
+        }
       />
     </View>
   );
@@ -745,6 +811,13 @@ function ProjectMode({
       );
       if (verdict !== 'ok') {
         const title = verdict === 'over' ? fi.plan.overTitle : fi.plan.offPlanTitle;
+        if (plan.mode === 'exact') {
+          // Kova katto: ei "kirjaa silti".
+          const message = verdict === 'over' ? fi.plan.overMsgExact : fi.plan.offPlanMsgExact;
+          tapFeedback();
+          Alert.alert(title, message, [{ text: fi.common.ok }]);
+          return;
+        }
         const message = verdict === 'over' ? fi.plan.overMsg : fi.plan.offPlanMsg;
         Alert.alert(title, message, [
           { text: fi.common.cancel, style: 'cancel' },
@@ -860,7 +933,10 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 13, fontWeight: '600', marginTop: Spacing.two },
   sessionHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   planCard: { borderRadius: 12, padding: Spacing.three, gap: Spacing.two },
+  planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   planCardTitle: { fontSize: 15, fontWeight: '700' },
+  modeBadge: { paddingHorizontal: Spacing.two, paddingVertical: 2, borderRadius: 8 },
+  modeBadgeText: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
   planTargets: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   planChip: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.one, borderRadius: 10 },
   planChipText: { fontSize: 14, fontWeight: '700' },

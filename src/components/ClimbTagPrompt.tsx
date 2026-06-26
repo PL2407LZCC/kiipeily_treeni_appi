@@ -9,7 +9,7 @@
  */
 
 import { useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Spacing } from '@/constants/theme';
@@ -22,12 +22,31 @@ import { tapFeedback } from '@/lib/haptics';
 /** Pystyliu'un kynnys (px), jonka yli jyrkkyys valitaan. */
 const STEEPNESS_THRESHOLD = 40;
 
+/**
+ * Ele-alueen (kortin sisällön) arvioitu leveys ennen kuin onLayout ehtii mitata sen.
+ * Modaali remounttaa sisällön joka avauksella, joten rowWidth nollautuu — ilman tätä
+ * ensimmäinen ele voisi osua leveyteen 0 (holdTypeFromX → null) ja kirjata väärän otetyypin.
+ * Arvio on itse asiassa tarkka: kortin sisältö = ikkunan leveys − backdropin (Spacing.four)
+ * − kortin (Spacing.four) vaakapaddingit molemmin puolin, ja e.x on tämän näkymän suhteen.
+ */
+function estimatedRowWidth(): number {
+  return Dimensions.get('window').width - 4 * Spacing.four;
+}
+
 interface ClimbTagPromptProps {
   visible: boolean;
   trackHoldType: boolean;
   trackSteepness: boolean;
   onCommit: (holdType: HoldType | null, steepness: Steepness | null) => void;
   onCancel: () => void;
+  /**
+   * Exact-tila (vain yhden ulottuvuuden tap-painiketiloissa): palauttaa false
+   * varianteille, joiden tavoite on jo täynnä → painike estetään. undefined =
+   * ei rajoitusta (joustava tila). Yhdistetyssä ele-tilassa rajoitusta ei voi
+   * näyttää jatkuvalla eleellä; kova katto hoidetaan committia arvioitaessa.
+   */
+  isHoldTypeOpen?: (holdType: HoldType | null) => boolean;
+  isSteepnessOpen?: (steepness: Steepness | null) => boolean;
 }
 
 export function ClimbTagPrompt({
@@ -36,6 +55,8 @@ export function ClimbTagPrompt({
   trackSteepness,
   onCommit,
   onCancel,
+  isHoldTypeOpen,
+  isSteepnessOpen,
 }: ClimbTagPromptProps) {
   const theme = useTheme();
 
@@ -56,9 +77,9 @@ export function ClimbTagPrompt({
             {both ? (
               <CombinedPicker onCommit={commit} />
             ) : trackHoldType ? (
-              <HoldTypeButtons onChoose={(h) => commit(h, null)} />
+              <HoldTypeButtons onChoose={(h) => commit(h, null)} isOpen={isHoldTypeOpen} />
             ) : (
-              <SteepnessButtons onChoose={(s) => commit(null, s)} />
+              <SteepnessButtons onChoose={(s) => commit(null, s)} isOpen={isSteepnessOpen} />
             )}
           </View>
         </View>
@@ -75,7 +96,9 @@ function CombinedPicker({
   onCommit: (holdType: HoldType | null, steepness: Steepness | null) => void;
 }) {
   const theme = useTheme();
-  const rowWidth = useRef(0);
+  // Seed with a non-zero estimate so the first gesture (before onLayout fires) classifies the
+  // hold-type zone correctly; onLayout refines it for rotation / future layout changes.
+  const rowWidth = useRef(estimatedRowWidth());
   const [hold, setHold] = useState<HoldType | null>(null);
   const [steep, setSteep] = useState<Steepness | null>(null);
 
@@ -153,21 +176,39 @@ function CombinedPicker({
 
 /* --------------------- Vain otetyyppi --------------------- */
 
-function HoldTypeButtons({ onChoose }: { onChoose: (h: HoldType | null) => void }) {
+function HoldTypeButtons({
+  onChoose,
+  isOpen,
+}: {
+  onChoose: (h: HoldType | null) => void;
+  isOpen?: (h: HoldType | null) => boolean;
+}) {
   const theme = useTheme();
+  const open = (h: HoldType | null) => (isOpen ? isOpen(h) : true);
   return (
     <>
       <Text style={[styles.title, { color: theme.text }]}>{fi.holdType.prompt}</Text>
       <View style={styles.row}>
-        <Pressable onPress={() => onChoose('slopy')} style={[styles.btn, { backgroundColor: theme.text }]}>
+        <Pressable
+          onPress={() => onChoose('slopy')}
+          disabled={!open('slopy')}
+          style={[styles.btn, { backgroundColor: theme.text, opacity: open('slopy') ? 1 : 0.3 }]}>
           <Text style={[styles.btnText, { color: theme.background }]}>{fi.holdType.slopy}</Text>
         </Pressable>
         <Pressable
           onPress={() => onChoose(null)}
-          style={[styles.btn, styles.btnNeutral, { backgroundColor: theme.backgroundElement }]}>
+          disabled={!open(null)}
+          style={[
+            styles.btn,
+            styles.btnNeutral,
+            { backgroundColor: theme.backgroundElement, opacity: open(null) ? 1 : 0.3 },
+          ]}>
           <Text style={[styles.btnText, { color: theme.textSecondary }]}>{fi.holdType.undefined}</Text>
         </Pressable>
-        <Pressable onPress={() => onChoose('crimpy')} style={[styles.btn, { backgroundColor: theme.text }]}>
+        <Pressable
+          onPress={() => onChoose('crimpy')}
+          disabled={!open('crimpy')}
+          style={[styles.btn, { backgroundColor: theme.text, opacity: open('crimpy') ? 1 : 0.3 }]}>
           <Text style={[styles.btnText, { color: theme.background }]}>{fi.holdType.crimpy}</Text>
         </Pressable>
       </View>
@@ -177,21 +218,39 @@ function HoldTypeButtons({ onChoose }: { onChoose: (h: HoldType | null) => void 
 
 /* --------------------- Vain jyrkkyys --------------------- */
 
-function SteepnessButtons({ onChoose }: { onChoose: (s: Steepness | null) => void }) {
+function SteepnessButtons({
+  onChoose,
+  isOpen,
+}: {
+  onChoose: (s: Steepness | null) => void;
+  isOpen?: (s: Steepness | null) => boolean;
+}) {
   const theme = useTheme();
+  const open = (s: Steepness | null) => (isOpen ? isOpen(s) : true);
   return (
     <>
       <Text style={[styles.title, { color: theme.text }]}>{fi.steepness.prompt}</Text>
       <View style={styles.row}>
-        <Pressable onPress={() => onChoose('slab')} style={[styles.btn, { backgroundColor: theme.text }]}>
+        <Pressable
+          onPress={() => onChoose('slab')}
+          disabled={!open('slab')}
+          style={[styles.btn, { backgroundColor: theme.text, opacity: open('slab') ? 1 : 0.3 }]}>
           <Text style={[styles.btnText, { color: theme.background }]}>{fi.steepness.slab}</Text>
         </Pressable>
         <Pressable
           onPress={() => onChoose(null)}
-          style={[styles.btn, styles.btnNeutral, { backgroundColor: theme.backgroundElement }]}>
+          disabled={!open(null)}
+          style={[
+            styles.btn,
+            styles.btnNeutral,
+            { backgroundColor: theme.backgroundElement, opacity: open(null) ? 1 : 0.3 },
+          ]}>
           <Text style={[styles.btnText, { color: theme.textSecondary }]}>{fi.steepness.undefined}</Text>
         </Pressable>
-        <Pressable onPress={() => onChoose('overhang')} style={[styles.btn, { backgroundColor: theme.text }]}>
+        <Pressable
+          onPress={() => onChoose('overhang')}
+          disabled={!open('overhang')}
+          style={[styles.btn, { backgroundColor: theme.text, opacity: open('overhang') ? 1 : 0.3 }]}>
           <Text style={[styles.btnText, { color: theme.background }]}>{fi.steepness.overhang}</Text>
         </Pressable>
       </View>

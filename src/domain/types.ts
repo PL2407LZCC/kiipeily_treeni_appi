@@ -140,6 +140,18 @@ export interface PlanDims {
 export const DEFAULT_PLAN_DIMS: PlanDims = { holdType: false, steepness: false };
 
 /**
+ * Suunnitelman noudatustila:
+ *  - `loose`: kaikki asteet näkyvät; tavoitteen ylitys / suunnitelman ulkopuolinen aste
+ *    vain varoittaa ("kirjaa silti") — nykyinen oletuskäytös.
+ *  - `exact`: kova katto. Vain suunnitelman asteet näkyvät, täyttyneet poistuvat
+ *    valikosta, eikä ylitystä voi ohittaa.
+ */
+export type PlanMode = 'loose' | 'exact';
+
+/** Oletus-tila vanhoille suunnitelmille jotka tallennettiin ennen tätä ominaisuutta. */
+export const DEFAULT_PLAN_MODE: PlanMode = 'loose';
+
+/**
  * Guided-session-suunnitelma: johdettu menneestä sessiosta + modifikaattoreista,
  * tallennetaan JSON-merkkijonona sessions.plan-sarakkeeseen. PR4: vain suunnitelma
  * ja sen näyttö (read-only) — ei enforcementtia eikä tallennettuja templaatteja.
@@ -151,6 +163,8 @@ export interface SessionPlan {
   modifier: { volumePct?: number; gradeShift?: number };
   /** Ulottuvuus-kytkimet: jaetaanko tavoitteet otetyypin/jyrkkyyden mukaan. */
   dims: PlanDims;
+  /** Noudatustila (oletus 'loose' vanhoille suunnitelmille). */
+  mode?: PlanMode;
   targets: PlanTarget[];
 }
 
@@ -167,6 +181,8 @@ export interface TrainingPlanTemplate {
   environment: SessionEnvironment | null;
   /** Ulottuvuus-kytkimet: jaetaanko tavoitteet otetyypin/jyrkkyyden mukaan. */
   dims: PlanDims;
+  /** Noudatustila (oletus 'loose' vanhoille malleille). */
+  mode?: PlanMode;
   targets: PlanTarget[];
   createdAt: string;
 }

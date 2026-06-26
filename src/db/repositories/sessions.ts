@@ -2,7 +2,12 @@ import { and, desc, eq, gte, isNull } from 'drizzle-orm';
 
 import { buildEfforts, type ClimbEffort } from '@/domain/aggregate';
 import { nowIso, todayIso } from '@/domain/dates';
-import { DEFAULT_PLAN_DIMS, type SessionEnvironment, type SessionPlan } from '@/domain/types';
+import {
+  DEFAULT_PLAN_DIMS,
+  DEFAULT_PLAN_MODE,
+  type SessionEnvironment,
+  type SessionPlan,
+} from '@/domain/types';
 import { db } from '../client';
 import { sessions } from '../schema';
 import { listAttemptLogsForSession } from './attemptLogs';
@@ -78,8 +83,12 @@ export function getSessionPlan(id: number): SessionPlan | null {
   if (!row?.plan) return null;
   try {
     const parsed = JSON.parse(row.plan) as SessionPlan;
-    // Vanhat suunnitelmat (ennen dims-ominaisuutta) eivät sisällä dims-kenttää.
-    return { ...parsed, dims: parsed.dims ?? { ...DEFAULT_PLAN_DIMS } };
+    // Vanhat suunnitelmat (ennen dims/mode-ominaisuutta) eivät sisällä näitä kenttiä.
+    return {
+      ...parsed,
+      dims: parsed.dims ?? { ...DEFAULT_PLAN_DIMS },
+      mode: parsed.mode ?? DEFAULT_PLAN_MODE,
+    };
   } catch {
     return null;
   }

@@ -17,6 +17,11 @@ interface GradePickerProps {
   longPressDelayMs?: number;
   /** Korostettu valittu arvo (esim. projektin luonnissa). */
   selected?: string | null;
+  /**
+   * Jos annettu, näytä VAIN nämä asteet (exact-tilan suunnitelma). Järjestys säilyy
+   * asteikon mukaisena. Tyhjä lista → ei yhtään astetta.
+   */
+  allowedGrades?: string[];
 }
 
 /** Isojen astenappien ruudukko sendien nopeaan kirjaamiseen. */
@@ -28,9 +33,11 @@ export function GradePicker({
   onLongPress,
   longPressDelayMs,
   selected,
+  allowedGrades,
 }: GradePickerProps) {
   const theme = useTheme();
-  const grades = gradesFor(system);
+  const allowed = allowedGrades != null ? new Set(allowedGrades) : null;
+  const grades = allowed ? gradesFor(system).filter((g) => allowed.has(g)) : gradesFor(system);
 
   return (
     <View style={styles.grid}>

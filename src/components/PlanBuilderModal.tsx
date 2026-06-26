@@ -11,6 +11,7 @@ import type {
   Discipline,
   GradeSystem,
   PlanDims,
+  PlanMode,
   PlanTarget,
   SessionEnvironment,
   SessionPlan,
@@ -85,6 +86,7 @@ export function PlanBuilderModal({
   const [volumePct, setVolumePct] = useState(0);
   const [gradeShift, setGradeShift] = useState(0);
   const [dims, setDims] = useState<PlanDims>({ holdType: false, steepness: false });
+  const [mode, setMode] = useState<PlanMode>('loose');
   const [templateName, setTemplateName] = useState('');
 
   // Pohjasessiot luetaan kun modaali on auki (kevyt synkroninen kysely).
@@ -111,9 +113,12 @@ export function PlanBuilderModal({
     return buildPlanTargets(efforts, { volumePct, gradeShift }, dims);
   }, [source, template, baselineId, volumePct, gradeShift, dims]);
 
-  // Templatesta valittaessa peilaa mallin omat dims (read-only lähde).
+  // Templatesta valittaessa peilaa mallin omat dims + mode (read-only lähde).
   useEffect(() => {
-    if (source === 'template' && template) setDims(template.dims);
+    if (source === 'template' && template) {
+      setDims(template.dims);
+      setMode(template.mode ?? 'loose');
+    }
   }, [source, template]);
 
   // Käsin hienosäädettävä työkopio. Lähde/muokkaimet asettavat lähtöarvot;
@@ -182,6 +187,7 @@ export function PlanBuilderModal({
     setVolumePct(0);
     setGradeShift(0);
     setDims({ holdType: false, steepness: false });
+    setMode('loose');
     setTemplateName('');
     setEditedTargets([]);
     setShowGradePicker(false);
@@ -201,6 +207,7 @@ export function PlanBuilderModal({
         sourceSessionId: null,
         modifier: {},
         dims: template.dims,
+        mode,
         targets: finalTargets,
       });
       close();
@@ -217,6 +224,7 @@ export function PlanBuilderModal({
           ...(gradeShift !== 0 ? { gradeShift } : {}),
         },
         dims,
+        mode,
         targets: finalTargets,
       });
       close();
@@ -231,6 +239,7 @@ export function PlanBuilderModal({
       theme,
       environment,
       dims,
+      mode,
       targets: finalTargets,
     });
     if (id != null) {
@@ -392,6 +401,19 @@ export function PlanBuilderModal({
 
           {editedTargets.length > 0 ? (
             <>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                {fi.plan.modeLabel}
+              </Text>
+              <SegmentedControl<PlanMode>
+                segments={[
+                  { value: 'loose', label: fi.plan.modeLoose },
+                  { value: 'exact', label: fi.plan.modeExact },
+                ]}
+                value={mode}
+                onChange={setMode}
+              />
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>{fi.plan.modeHint}</Text>
+
               <Text style={[styles.label, { color: colors.textSecondary }]}>{fi.plan.preview}</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
                 {fi.plan.targetsEditHint}
