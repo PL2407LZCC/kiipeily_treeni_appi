@@ -177,6 +177,7 @@ export const fi = {
     themeLabel: 'Teema',
     noResults: 'Ei hakutuloksia',
     resultCount: 'osumaa',
+    clearAll: 'Tyhjennä haku ja suodattimet',
   },
   sessionDetail: {
     title: 'Sessio',

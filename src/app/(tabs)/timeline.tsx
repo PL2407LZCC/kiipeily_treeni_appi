@@ -63,10 +63,17 @@ export default function TimelineScreen() {
   }, [rows, query, envFilter, themeFilter]);
 
   const filtersActive = envFilter !== 'all' || themeFilter !== 'all';
+  const searchActive = query.trim() !== '';
   const filterSummary =
     [envFilter !== 'all' ? fi.environment[envFilter] : null, themeFilter !== 'all' ? themeFilter : null]
       .filter(Boolean)
       .join(' · ') || fi.timeline.filterAll;
+
+  const resetAll = () => {
+    setQuery('');
+    setEnvFilter('all');
+    setThemeFilter('all');
+  };
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: theme.background }]} edges={['top']}>
@@ -88,6 +95,7 @@ export default function TimelineScreen() {
                 placeholderTextColor={theme.textSecondary}
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="search"
                 style={[styles.searchInput, { color: theme.text }]}
               />
               {query.length > 0 ? (
@@ -141,10 +149,19 @@ export default function TimelineScreen() {
               <Text style={[styles.muted, { color: theme.textSecondary }]}>
                 {fi.timeline.noResults}
               </Text>
+              <Pressable onPress={resetAll} hitSlop={8} style={styles.resetBtn}>
+                <Ionicons name="refresh" size={16} color={theme.text} />
+                <Text style={[styles.resetText, { color: theme.text }]}>
+                  {fi.timeline.clearAll}
+                </Text>
+              </Pressable>
             </View>
           ) : (
-            <ScrollView contentContainerStyle={styles.body}>
-              {query.trim() !== '' || filtersActive ? (
+            <ScrollView
+              contentContainerStyle={styles.body}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag">
+              {searchActive || filtersActive ? (
                 <Text style={[styles.count, { color: theme.textSecondary }]}>
                   {filtered.length} {fi.timeline.resultCount}
                 </Text>
@@ -206,6 +223,8 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: '600' },
   body: { padding: Spacing.three, gap: Spacing.two },
   count: { fontSize: 13, marginBottom: Spacing.one },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   muted: { fontSize: 15 },
+  resetBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  resetText: { fontSize: 14, fontWeight: '600' },
 });
