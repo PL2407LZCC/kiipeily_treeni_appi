@@ -9,7 +9,7 @@
  */
 
 import { useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Spacing } from '@/constants/theme';
@@ -21,6 +21,17 @@ import { tapFeedback } from '@/lib/haptics';
 
 /** Pystyliu'un kynnys (px), jonka yli jyrkkyys valitaan. */
 const STEEPNESS_THRESHOLD = 40;
+
+/**
+ * Ele-alueen (kortin sisällön) arvioitu leveys ennen kuin onLayout ehtii mitata sen.
+ * Modaali remounttaa sisällön joka avauksella, joten rowWidth nollautuu — ilman tätä
+ * ensimmäinen ele voisi osua leveyteen 0 (holdTypeFromX → null) ja kirjata väärän otetyypin.
+ * Arvio on itse asiassa tarkka: kortin sisältö = ikkunan leveys − backdropin (Spacing.four)
+ * − kortin (Spacing.four) vaakapaddingit molemmin puolin, ja e.x on tämän näkymän suhteen.
+ */
+function estimatedRowWidth(): number {
+  return Dimensions.get('window').width - 4 * Spacing.four;
+}
 
 interface ClimbTagPromptProps {
   visible: boolean;
@@ -85,7 +96,9 @@ function CombinedPicker({
   onCommit: (holdType: HoldType | null, steepness: Steepness | null) => void;
 }) {
   const theme = useTheme();
-  const rowWidth = useRef(0);
+  // Seed with a non-zero estimate so the first gesture (before onLayout fires) classifies the
+  // hold-type zone correctly; onLayout refines it for rotation / future layout changes.
+  const rowWidth = useRef(estimatedRowWidth());
   const [hold, setHold] = useState<HoldType | null>(null);
   const [steep, setSteep] = useState<Steepness | null>(null);
 
