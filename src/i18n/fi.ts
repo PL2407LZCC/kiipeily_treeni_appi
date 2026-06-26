@@ -215,6 +215,13 @@ export const fi = {
     comparisonNote: 'Vertaa kahta ajanjaksoa. A = vasen/aiempi, B = oikea.',
     periodA: 'Jakso A',
     periodB: 'Jakso B',
+    // Jaksovertailun avattavat osiot
+    periodsSection: 'Jaksot',
+    filtersSection: 'Suodattimet',
+    // Suodattimet (vain jos dataa): otetyyppi / jyrkkyys
+    filterAll: 'Kaikki',
+    filterHoldType: 'Suodata: otetyyppi',
+    filterSteepness: 'Suodata: jyrkkyys',
     workouts: 'Treenikerrat',
     totalEfforts: 'Kaikki nousut (yritykset + sendit)',
     attemptsByGrade: 'Yritykset asteittain',

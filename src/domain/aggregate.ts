@@ -248,6 +248,15 @@ export function compareTallies(
     .sort((x, y) => gradeIndex(x.grade, system) - gradeIndex(y.grade, system));
 }
 
+/**
+ * Prosenttimuutos a→b pyöristettynä kokonaisluvuksi. null jos a === 0 (lähtötaso
+ * nolla → muutosta ei voi ilmaista prosentteina).
+ */
+export function percentChange(a: number, b: number): number | null {
+  if (a === 0) return null;
+  return Math.round(((b - a) / a) * 100);
+}
+
 /* ----------------------- suunnitelman modifikaattorit ----------------------- */
 
 export interface GradeCount {
