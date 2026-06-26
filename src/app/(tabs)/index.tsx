@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ClimbTagPrompt } from '@/components/ClimbTagPrompt';
+import { Collapsible } from '@/components/Collapsible';
 import { GradePicker } from '@/components/GradePicker';
 import { NewProjectModal } from '@/components/NewProjectModal';
 import { PlanBuilderModal } from '@/components/PlanBuilderModal';
@@ -80,10 +81,6 @@ export default function HomeScreen() {
   const session = useDbQuery(() => Sessions.getActiveSession(), []);
   const sessionId = session?.id ?? null;
   const themes = useDbQuery(() => Themes.listThemes(), []);
-  const activePlan = useDbQuery(
-    () => (sessionId != null ? Sessions.getSessionPlan(sessionId) : null),
-    [sessionId],
-  );
 
   // Alusta boulderoinnin näyttöasteikko asetusten oletuksesta.
   useEffect(() => {
@@ -245,6 +242,22 @@ export default function HomeScreen() {
     );
   }
 
+  // Yhteenveto "Säädöt"-osion otsikkoriville (näkyy suljettuna) — sis. flash-tila,
+  // jotta päällä oleva flash ei jää piiloon vaikka osio on kiinni.
+  const controlsSummary = [
+    fi.discipline[active.discipline],
+    active.mode === 'send' ? fi.home.modeSend : fi.home.modeProject,
+    ...(active.mode === 'send'
+      ? [
+          ...(active.discipline === 'boulder'
+            ? [active.boulderDisplaySystem === 'font' ? 'Font' : 'V']
+            : []),
+          ...(active.quantity > 1 ? [`${active.quantity}×`] : []),
+          ...(active.flash ? [fi.home.flash] : []),
+        ]
+      : []),
+  ].join(' · ');
+
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: theme.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.body}>
@@ -262,55 +275,68 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Treenisuunnitelma (read-only) — vain jos sessiolle on tallennettu suunnitelma */}
-        {activePlan && activePlan.targets.length > 0 ? (
-          <View style={[styles.planCard, { backgroundColor: theme.backgroundElement }]}>
-            <View style={styles.planTitleRow}>
-              <Text style={[styles.planCardTitle, { color: theme.text }]}>
-                {fi.plan.activeTitle}
-              </Text>
-              {activePlan.mode === 'exact' ? (
-                <View style={[styles.modeBadge, { backgroundColor: theme.text }]}>
-                  <Text style={[styles.modeBadgeText, { color: theme.background }]}>
-                    {fi.plan.exactBadge}
-                  </Text>
-                </View>
+        {/* Säädöt — laji, tila ja kirjausvalinnat (asteikko, määrä, flash) avattavan osion
+            takana. Suunnitelma näkyy "Suunnitelman edistyminen" -paneelissa, joten erillistä
+            korttia ei tarvita. */}
+        <Collapsible title={fi.home.controlsSection} summary={controlsSummary}>
+          <SegmentedControl<Discipline>
+            segments={[
+              { value: 'boulder', label: fi.discipline.boulder },
+              { value: 'sport', label: fi.discipline.sport },
+            ]}
+            value={active.discipline}
+            onChange={active.setDiscipline}
+          />
+          <SegmentedControl
+            large
+            segments={[
+              { value: 'send', label: fi.home.modeSend },
+              { value: 'project', label: fi.home.modeProject },
+            ]}
+            value={active.mode}
+            onChange={(m) => active.setMode(m)}
+          />
+          {active.mode === 'send' ? (
+            <>
+              {active.discipline === 'boulder' ? (
+                <SegmentedControl
+                  segments={[
+                    { value: 'font', label: 'Font' },
+                    { value: 'v', label: 'V' },
+                  ]}
+                  value={active.boulderDisplaySystem}
+                  onChange={active.setBoulderDisplaySystem}
+                />
               ) : null}
-            </View>
-            <Text style={[styles.muted, { color: theme.textSecondary }]}>{activePlan.label}</Text>
-            <View style={styles.planTargets}>
-              {activePlan.targets.map((t) => (
-                <View
-                  key={targetChipKey(t)}
-                  style={[styles.planChip, { backgroundColor: theme.background }]}>
-                  <Text style={[styles.planChipText, { color: theme.text }]}>
-                    {t.target}× {t.gradeValue}
-                    {planDimSuffix(activePlan.dims, t.holdType, t.steepness)}
+              <View style={styles.controlsRow}>
+                <Stepper
+                  value={active.quantity}
+                  onChange={active.setQuantity}
+                  label={fi.home.quantity}
+                />
+                <Pressable
+                  onPress={active.toggleFlash}
+                  style={[
+                    styles.flashBtn,
+                    { backgroundColor: active.flash ? '#f1c40f' : theme.background },
+                  ]}>
+                  <Ionicons
+                    name="flash"
+                    size={20}
+                    color={active.flash ? '#000' : theme.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.flashText,
+                      { color: active.flash ? '#000' : theme.textSecondary },
+                    ]}>
+                    {fi.home.flash}
                   </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
-
-        {/* Laji + tila */}
-        <SegmentedControl<Discipline>
-          segments={[
-            { value: 'boulder', label: fi.discipline.boulder },
-            { value: 'sport', label: fi.discipline.sport },
-          ]}
-          value={active.discipline}
-          onChange={active.setDiscipline}
-        />
-        <SegmentedControl
-          large
-          segments={[
-            { value: 'send', label: fi.home.modeSend },
-            { value: 'project', label: fi.home.modeProject },
-          ]}
-          value={active.mode}
-          onChange={(m) => active.setMode(m)}
-        />
+                </Pressable>
+              </View>
+            </>
+          ) : null}
+        </Collapsible>
 
         {active.mode === 'send' ? (
           <SendMode sessionId={sessionId} />
@@ -571,36 +597,6 @@ function SendMode({ sessionId }: { sessionId: number }) {
 
   return (
     <View style={styles.section}>
-      {active.discipline === 'boulder' ? (
-        <SegmentedControl
-          segments={[
-            { value: 'font', label: 'Font' },
-            { value: 'v', label: 'V' },
-          ]}
-          value={active.boulderDisplaySystem}
-          onChange={active.setBoulderDisplaySystem}
-        />
-      ) : null}
-
-      <View style={styles.controlsRow}>
-        <Stepper value={active.quantity} onChange={active.setQuantity} label={fi.home.quantity} />
-        <Pressable
-          onPress={active.toggleFlash}
-          style={[
-            styles.flashBtn,
-            { backgroundColor: active.flash ? '#f1c40f' : theme.backgroundElement },
-          ]}>
-          <Ionicons
-            name="flash"
-            size={20}
-            color={active.flash ? '#000' : theme.textSecondary}
-          />
-          <Text style={[styles.flashText, { color: active.flash ? '#000' : theme.textSecondary }]}>
-            {fi.home.flash}
-          </Text>
-        </Pressable>
-      </View>
-
       {planActive && progressRows.length > 0 ? (
         <View style={[styles.progressPanel, { backgroundColor: theme.backgroundElement }]}>
           <Text style={[styles.progressTitle, { color: theme.text }]}>
@@ -656,55 +652,46 @@ function SendMode({ sessionId }: { sessionId: number }) {
         </>
       )}
 
-      <View style={styles.listHeaderRow}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{fi.home.loggedSends}</Text>
+      <Collapsible title={fi.home.loggedSends} summary={String(sends.length)}>
         {active.lastSendId != null ? (
           <Pressable onPress={undo} style={styles.undoBtn}>
             <Ionicons name="arrow-undo" size={16} color={theme.text} />
             <Text style={[styles.undoText, { color: theme.text }]}>{fi.home.undoLast}</Text>
           </Pressable>
         ) : null}
-      </View>
-
-      {sends.length === 0 ? (
-        <Text style={[styles.muted, { color: theme.textSecondary }]}>{fi.home.noSends}</Text>
-      ) : (
-        sends.map((s) => (
-          <View key={s.id} style={[styles.entryRow, { backgroundColor: theme.backgroundElement }]}>
-            <Text style={[styles.entryGrade, { color: theme.text }]}>
-              {s.count > 1 ? `${s.count}× ` : ''}
-              {s.gradeValue}
-            </Text>
-            {s.flash ? <Ionicons name="flash" size={16} color="#f1c40f" /> : null}
-            <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
-              {fi.discipline[s.discipline as Discipline]}
-              {holdTypeLabel(s.holdType) ? ` · ${holdTypeLabel(s.holdType)}` : ''}
-              {steepnessLabel(s.steepness) ? ` · ${steepnessLabel(s.steepness)}` : ''}
-            </Text>
-            <Pressable onPress={() => remove(s.id)} hitSlop={8} style={styles.trash}>
-              <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
-            </Pressable>
-          </View>
-        ))
-      )}
+        {sends.length === 0 ? (
+          <Text style={[styles.muted, { color: theme.textSecondary }]}>{fi.home.noSends}</Text>
+        ) : (
+          sends.map((s) => (
+            <View key={s.id} style={[styles.entryRow, { backgroundColor: theme.background }]}>
+              <Text style={[styles.entryGrade, { color: theme.text }]}>
+                {s.count > 1 ? `${s.count}× ` : ''}
+                {s.gradeValue}
+              </Text>
+              {s.flash ? <Ionicons name="flash" size={16} color="#f1c40f" /> : null}
+              <Text style={[styles.entryMeta, { color: theme.textSecondary }]}>
+                {fi.discipline[s.discipline as Discipline]}
+                {holdTypeLabel(s.holdType) ? ` · ${holdTypeLabel(s.holdType)}` : ''}
+                {steepnessLabel(s.steepness) ? ` · ${steepnessLabel(s.steepness)}` : ''}
+              </Text>
+              <Pressable onPress={() => remove(s.id)} hitSlop={8} style={styles.trash}>
+                <Ionicons name="trash-outline" size={18} color={theme.textSecondary} />
+              </Pressable>
+            </View>
+          ))
+        )}
+      </Collapsible>
 
       {attempts.length > 0 ? (
-        <>
-          <View style={styles.listHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              {fi.home.loggedAttempts}
-            </Text>
-            {active.lastAttemptId != null ? (
-              <Pressable onPress={undoAttempt} style={styles.undoBtn}>
-                <Ionicons name="arrow-undo" size={16} color={theme.text} />
-                <Text style={[styles.undoText, { color: theme.text }]}>{fi.home.undoLast}</Text>
-              </Pressable>
-            ) : null}
-          </View>
+        <Collapsible title={fi.home.loggedAttempts} summary={String(attempts.length)}>
+          {active.lastAttemptId != null ? (
+            <Pressable onPress={undoAttempt} style={styles.undoBtn}>
+              <Ionicons name="arrow-undo" size={16} color={theme.text} />
+              <Text style={[styles.undoText, { color: theme.text }]}>{fi.home.undoLast}</Text>
+            </Pressable>
+          ) : null}
           {attempts.map((a) => (
-            <View
-              key={a.id}
-              style={[styles.entryRow, { backgroundColor: theme.backgroundElement }]}>
+            <View key={a.id} style={[styles.entryRow, { backgroundColor: theme.background }]}>
               <Ionicons name="ellipse-outline" size={14} color={theme.textSecondary} />
               <Text style={[styles.entryGrade, { color: theme.text }]}>
                 {a.count > 1 ? `${a.count}× ` : ''}
@@ -720,7 +707,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
               </Pressable>
             </View>
           ))}
-        </>
+        </Collapsible>
       ) : null}
 
       <ClimbTagPrompt
