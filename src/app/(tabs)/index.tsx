@@ -660,22 +660,15 @@ function SendMode({ sessionId }: { sessionId: number }) {
       </Collapsible>
 
       {attempts.length > 0 ? (
-        <>
-          <View style={styles.listHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              {fi.home.loggedAttempts}
-            </Text>
-            {active.lastAttemptId != null ? (
-              <Pressable onPress={undoAttempt} style={styles.undoBtn}>
-                <Ionicons name="arrow-undo" size={16} color={theme.text} />
-                <Text style={[styles.undoText, { color: theme.text }]}>{fi.home.undoLast}</Text>
-              </Pressable>
-            ) : null}
-          </View>
+        <Collapsible title={fi.home.loggedAttempts} summary={String(attempts.length)}>
+          {active.lastAttemptId != null ? (
+            <Pressable onPress={undoAttempt} style={styles.undoBtn}>
+              <Ionicons name="arrow-undo" size={16} color={theme.text} />
+              <Text style={[styles.undoText, { color: theme.text }]}>{fi.home.undoLast}</Text>
+            </Pressable>
+          ) : null}
           {attempts.map((a) => (
-            <View
-              key={a.id}
-              style={[styles.entryRow, { backgroundColor: theme.backgroundElement }]}>
+            <View key={a.id} style={[styles.entryRow, { backgroundColor: theme.background }]}>
               <Ionicons name="ellipse-outline" size={14} color={theme.textSecondary} />
               <Text style={[styles.entryGrade, { color: theme.text }]}>
                 {a.count > 1 ? `${a.count}× ` : ''}
@@ -691,7 +684,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
               </Pressable>
             </View>
           ))}
-        </>
+        </Collapsible>
       ) : null}
 
       <ClimbTagPrompt
