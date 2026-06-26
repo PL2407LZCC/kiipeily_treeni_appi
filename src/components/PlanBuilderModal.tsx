@@ -21,6 +21,7 @@ import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
 import { fi, holdTypeLabel, steepnessLabel } from '@/i18n/fi';
 import { bumpData } from '@/state/dataVersion';
+import { Collapsible } from './Collapsible';
 import { GradePicker } from './GradePicker';
 import { PrimaryButton } from './PrimaryButton';
 import { SegmentedControl } from './SegmentedControl';
@@ -54,6 +55,9 @@ interface PlanBuilderModalProps {
   onClose: () => void;
   onUse: (plan: SessionPlan) => void;
 }
+
+/** Montako uusinta pohjasessiota näytetään suoraan; loput avattavan osion taakse. */
+const BASELINE_VISIBLE = 8;
 
 /** Volyymi-% säädetään 2 %:n askelin; grade shift yhden asteen askelin. */
 const VOLUME_STEP = 2;
@@ -120,6 +124,17 @@ export function PlanBuilderModal({
       setMode(template.mode ?? 'loose');
     }
   }, [source, template]);
+
+  // Avattaessa: oletukset edellisestä treenistä — muista "seuraa otetyyppiä/jyrkkyyttä"
+  // ja joustava/tarkka edellisen suunnitelman mukaan.
+  useEffect(() => {
+    if (!visible) return;
+    const last = Sessions.getLastPlanConfig();
+    if (last) {
+      setDims(last.dims);
+      setMode(last.mode);
+    }
+  }, [visible]);
 
   // Käsin hienosäädettävä työkopio. Lähde/muokkaimet asettavat lähtöarvot;
   // sen jälkeen jokaista astetta voi säätää +/- erikseen. Muokkaimen muutos
@@ -249,6 +264,27 @@ export function PlanBuilderModal({
     }
   };
 
+  const renderBaseline = (s: (typeof baselines)[number]) => {
+    const sel = s.id === baselineId;
+    return (
+      <Pressable
+        key={s.id}
+        onPress={() => setBaselineId(s.id)}
+        style={[styles.row, { backgroundColor: sel ? colors.text : colors.backgroundElement }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowTitle, { color: sel ? colors.background : colors.text }]}>
+            {formatDateFi(s.date)}
+            {s.location ? ` · ${s.location}` : ''}
+          </Text>
+          <Text style={[styles.rowMeta, { color: sel ? colors.background : colors.textSecondary }]}>
+            {s.theme ?? fi.home.noTheme}
+          </Text>
+        </View>
+        {sel ? <Ionicons name="checkmark" size={20} color={colors.background} /> : null}
+      </Pressable>
+    );
+  };
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -280,35 +316,27 @@ export function PlanBuilderModal({
                 <Text style={[styles.muted, { color: colors.textSecondary }]}>
                   {fi.plan.noBaselines}
                 </Text>
+              ) : baseline != null ? (
+                // Valittu pohjasessio näkyy; loput vaihtoehdot avattavan osion takana.
+                <>
+                  {renderBaseline(baseline)}
+                  {baselines.length > 1 ? (
+                    <Collapsible title={fi.plan.changeBaseline}>
+                      {baselines.filter((b) => b.id !== baseline.id).map(renderBaseline)}
+                    </Collapsible>
+                  ) : null}
+                </>
               ) : (
-                baselines.map((s) => {
-                  const sel = s.id === baselineId;
-                  return (
-                    <Pressable
-                      key={s.id}
-                      onPress={() => setBaselineId(s.id)}
-                      style={[
-                        styles.row,
-                        { backgroundColor: sel ? colors.text : colors.backgroundElement },
-                      ]}>
-                      <View style={{ flex: 1 }}>
-                        <Text
-                          style={[styles.rowTitle, { color: sel ? colors.background : colors.text }]}>
-                          {formatDateFi(s.date)}
-                          {s.location ? ` · ${s.location}` : ''}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.rowMeta,
-                            { color: sel ? colors.background : colors.textSecondary },
-                          ]}>
-                          {s.theme ?? fi.home.noTheme}
-                        </Text>
-                      </View>
-                      {sel ? <Ionicons name="checkmark" size={20} color={colors.background} /> : null}
-                    </Pressable>
-                  );
-                })
+                // Ei valittua: näytä 8 uusinta; vanhemmat avattavan osion takana.
+                <>
+                  {baselines.slice(0, BASELINE_VISIBLE).map(renderBaseline)}
+                  {baselines.length > BASELINE_VISIBLE ? (
+                    <Collapsible
+                      title={`${fi.plan.showOlder} (${baselines.length - BASELINE_VISIBLE})`}>
+                      {baselines.slice(BASELINE_VISIBLE).map(renderBaseline)}
+                    </Collapsible>
+                  ) : null}
+                </>
               )}
 
               {baselineId != null ? (

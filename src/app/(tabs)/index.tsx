@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ClimbTagPrompt } from '@/components/ClimbTagPrompt';
+import { Collapsible } from '@/components/Collapsible';
 import { GradePicker } from '@/components/GradePicker';
 import { NewProjectModal } from '@/components/NewProjectModal';
 import { PlanBuilderModal } from '@/components/PlanBuilderModal';
@@ -80,10 +81,6 @@ export default function HomeScreen() {
   const session = useDbQuery(() => Sessions.getActiveSession(), []);
   const sessionId = session?.id ?? null;
   const themes = useDbQuery(() => Themes.listThemes(), []);
-  const activePlan = useDbQuery(
-    () => (sessionId != null ? Sessions.getSessionPlan(sessionId) : null),
-    [sessionId],
-  );
 
   // Alusta boulderoinnin näyttöasteikko asetusten oletuksesta.
   useEffect(() => {
@@ -262,55 +259,31 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Treenisuunnitelma (read-only) — vain jos sessiolle on tallennettu suunnitelma */}
-        {activePlan && activePlan.targets.length > 0 ? (
-          <View style={[styles.planCard, { backgroundColor: theme.backgroundElement }]}>
-            <View style={styles.planTitleRow}>
-              <Text style={[styles.planCardTitle, { color: theme.text }]}>
-                {fi.plan.activeTitle}
-              </Text>
-              {activePlan.mode === 'exact' ? (
-                <View style={[styles.modeBadge, { backgroundColor: theme.text }]}>
-                  <Text style={[styles.modeBadgeText, { color: theme.background }]}>
-                    {fi.plan.exactBadge}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={[styles.muted, { color: theme.textSecondary }]}>{activePlan.label}</Text>
-            <View style={styles.planTargets}>
-              {activePlan.targets.map((t) => (
-                <View
-                  key={targetChipKey(t)}
-                  style={[styles.planChip, { backgroundColor: theme.background }]}>
-                  <Text style={[styles.planChipText, { color: theme.text }]}>
-                    {t.target}× {t.gradeValue}
-                    {planDimSuffix(activePlan.dims, t.holdType, t.steepness)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
-
-        {/* Laji + tila */}
-        <SegmentedControl<Discipline>
-          segments={[
-            { value: 'boulder', label: fi.discipline.boulder },
-            { value: 'sport', label: fi.discipline.sport },
-          ]}
-          value={active.discipline}
-          onChange={active.setDiscipline}
-        />
-        <SegmentedControl
-          large
-          segments={[
-            { value: 'send', label: fi.home.modeSend },
-            { value: 'project', label: fi.home.modeProject },
-          ]}
-          value={active.mode}
-          onChange={(m) => active.setMode(m)}
-        />
+        {/* Laji + tila — piilotettu avattavan osion taakse (suunnitelma näkyy
+            "Suunnitelman edistyminen" -paneelissa, joten erillistä korttia ei tarvita). */}
+        <Collapsible
+          title={fi.home.disciplineAndMode}
+          summary={`${fi.discipline[active.discipline]} · ${
+            active.mode === 'send' ? fi.home.modeSend : fi.home.modeProject
+          }`}>
+          <SegmentedControl<Discipline>
+            segments={[
+              { value: 'boulder', label: fi.discipline.boulder },
+              { value: 'sport', label: fi.discipline.sport },
+            ]}
+            value={active.discipline}
+            onChange={active.setDiscipline}
+          />
+          <SegmentedControl
+            large
+            segments={[
+              { value: 'send', label: fi.home.modeSend },
+              { value: 'project', label: fi.home.modeProject },
+            ]}
+            value={active.mode}
+            onChange={(m) => active.setMode(m)}
+          />
+        </Collapsible>
 
         {active.mode === 'send' ? (
           <SendMode sessionId={sessionId} />

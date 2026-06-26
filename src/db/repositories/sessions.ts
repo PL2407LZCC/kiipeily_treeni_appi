@@ -1,10 +1,12 @@
-import { and, desc, eq, gte, isNull } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, isNull } from 'drizzle-orm';
 
 import { buildEfforts, type ClimbEffort } from '@/domain/aggregate';
 import { nowIso, todayIso } from '@/domain/dates';
 import {
   DEFAULT_PLAN_DIMS,
   DEFAULT_PLAN_MODE,
+  type PlanDims,
+  type PlanMode,
   type SessionEnvironment,
   type SessionPlan,
 } from '@/domain/types';
@@ -97,6 +99,31 @@ export function getSessionPlan(id: number): SessionPlan | null {
 /** Tallenna session suunnitelma (JSON.stringify sessions.plan-sarakkeeseen). */
 export function setSessionPlan(id: number, plan: SessionPlan): void {
   db.update(sessions).set({ plan: JSON.stringify(plan) }).where(eq(sessions.id, id)).run();
+}
+
+/**
+ * Viimeksi käytetyn suunnitelman ulottuvuus- + tila-asetukset (uusin sessio jolla on
+ * suunnitelma). Käytetään PlanBuilderModalin oletusarvoina, jotta "seuraa otetyyppiä/
+ * jyrkkyyttä" ja joustava/tarkka muistetaan edellisestä treenistä. null jos ei löydy.
+ */
+export function getLastPlanConfig(): { dims: PlanDims; mode: PlanMode } | null {
+  const row = db
+    .select({ plan: sessions.plan })
+    .from(sessions)
+    .where(isNotNull(sessions.plan))
+    .orderBy(desc(sessions.startedAt))
+    .limit(1)
+    .get();
+  if (!row?.plan) return null;
+  try {
+    const parsed = JSON.parse(row.plan) as SessionPlan;
+    return {
+      dims: parsed.dims ?? { ...DEFAULT_PLAN_DIMS },
+      mode: parsed.mode ?? DEFAULT_PLAN_MODE,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
