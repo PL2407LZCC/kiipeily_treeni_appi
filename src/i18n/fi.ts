@@ -169,6 +169,14 @@ export const fi = {
     sends: 'sendiä',
     attempts: 'yritystä',
     supplemental: 'oheis',
+    // Haku + suodatus
+    searchPlaceholder: 'Hae paikka, teema tai muistiinpano',
+    filters: 'Suodattimet',
+    filterAll: 'Kaikki',
+    environmentLabel: 'Ympäristö',
+    themeLabel: 'Teema',
+    noResults: 'Ei hakutuloksia',
+    resultCount: 'osumaa',
   },
   sessionDetail: {
     title: 'Sessio',
