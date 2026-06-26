@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BarChart, type BarDatum } from '@/components/BarChart';
+import { Collapsible } from '@/components/Collapsible';
 import { ComparisonBarChart } from '@/components/ComparisonBarChart';
 import {
   PeriodPicker,
@@ -17,11 +18,12 @@ import {
   compareTallies,
   countWorkouts,
   filterByPeriod,
+  percentChange,
   tallyByGrade,
   type ClimbEffort,
 } from '@/domain/aggregate';
 import { gradePyramid, volumeOverTime, type DatedCount, type VolumePeriod } from '@/domain/stats';
-import type { Climb, Discipline, GradeSystem } from '@/domain/types';
+import type { Climb, Discipline, GradeSystem, HoldType, Steepness } from '@/domain/types';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
 import { fi } from '@/i18n/fi';
@@ -35,6 +37,9 @@ export default function StatsScreen() {
   // Oletus: tämä viikko (B) vs viime viikko (A).
   const [periodA, setPeriodA] = useState<PeriodSelection>({ preset: 'lastWeek' });
   const [periodB, setPeriodB] = useState<PeriodSelection>({ preset: 'thisWeek' });
+  // Jaksovertailun suodattimet (vain jos dataa on tageilla).
+  const [holdFilter, setHoldFilter] = useState<HoldType | 'all'>('all');
+  const [steepFilter, setSteepFilter] = useState<Steepness | 'all'>('all');
 
   const data = useDbQuery(() => {
     const sends = Sends.allSends();
@@ -96,11 +101,36 @@ export default function StatsScreen() {
   const rangeA = resolvePeriod(periodA);
   const rangeB = resolvePeriod(periodB);
 
-  const effortsA = filterByPeriod(data.efforts, rangeA);
-  const effortsB = filterByPeriod(data.efforts, rangeB);
+  // Suodattimet näkyvät vain jos efforteissa on kyseistä ulottuvuusdataa.
+  const hasHoldData = data.efforts.some((e) => e.holdType != null);
+  const hasSteepData = data.efforts.some((e) => e.steepness != null);
+
+  // Otetyyppi/jyrkkyys-suodatus koskee aste-metriikoita (ei treenikertoja).
+  const filteredEfforts = data.efforts.filter(
+    (e) =>
+      (holdFilter === 'all' || e.holdType === holdFilter) &&
+      (steepFilter === 'all' || e.steepness === steepFilter),
+  );
+
+  const effortsA = filterByPeriod(filteredEfforts, rangeA);
+  const effortsB = filterByPeriod(filteredEfforts, rangeB);
 
   const workoutsA = countWorkouts(data.sessionDates, rangeA);
   const workoutsB = countWorkouts(data.sessionDates, rangeB);
+  const workoutDelta = workoutsB - workoutsA;
+  const workoutColor =
+    workoutDelta > 0 ? '#2e9e5b' : workoutDelta < 0 ? '#d1495b' : theme.text;
+  const fmtPct = (pct: number | null) => (pct == null ? '—' : `${pct > 0 ? '+' : ''}${pct} %`);
+
+  // Yhteenvedot kiinniolevien jaksovertailu-osioiden otsikkoriveille.
+  const periodsSummary = `${fi.stats.periods[periodA.preset]} → ${fi.stats.periods[periodB.preset]}`;
+  const filterSummary =
+    [
+      holdFilter !== 'all' ? fi.holdType[holdFilter] : null,
+      steepFilter !== 'all' ? fi.steepness[steepFilter] : null,
+    ]
+      .filter(Boolean)
+      .join(' · ') || fi.stats.filterAll;
 
   const totalRows = compareTallies(
     tallyByGrade(effortsA, { metric: 'total', discipline, displaySystem }),
@@ -133,30 +163,22 @@ export default function StatsScreen() {
             onChange={setDiscipline}
           />
 
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>{fi.stats.gradePyramid}</Text>
-          <Text style={[styles.note, { color: theme.textSecondary }]}>{fi.stats.note}</Text>
-          {pyramidBars.length === 0 ? (
-            <Text style={[styles.muted, { color: theme.textSecondary }]}>{fi.stats.empty}</Text>
-          ) : (
-            <BarChart data={pyramidBars} orientation="horizontal" />
-          )}
-
-          <Text style={[styles.sectionTitle, { color: theme.text, marginTop: Spacing.three }]}>
-            {fi.stats.volume}
-          </Text>
-          <SegmentedControl<VolumePeriod>
-            segments={[
-              { value: 'day', label: fi.stats.perDay },
-              { value: 'week', label: fi.stats.perWeek },
-            ]}
-            value={period}
-            onChange={setPeriod}
-          />
-          {volumeBars.length === 0 ? (
-            <Text style={[styles.muted, { color: theme.textSecondary }]}>{fi.stats.empty}</Text>
-          ) : (
-            <BarChart data={volumeBars.slice(-8)} orientation="vertical" />
-          )}
+          {/* Volyymi — avattava, pidetään ylhäällä (oletuksena kiinni). */}
+          <Collapsible title={fi.stats.volume}>
+            <SegmentedControl<VolumePeriod>
+              segments={[
+                { value: 'day', label: fi.stats.perDay },
+                { value: 'week', label: fi.stats.perWeek },
+              ]}
+              value={period}
+              onChange={setPeriod}
+            />
+            {volumeBars.length === 0 ? (
+              <Text style={[styles.muted, { color: theme.textSecondary }]}>{fi.stats.empty}</Text>
+            ) : (
+              <BarChart data={volumeBars.slice(-8)} orientation="vertical" />
+            )}
+          </Collapsible>
 
           {/* --- Jaksovertailu --- */}
           <Text style={[styles.sectionTitle, { color: theme.text, marginTop: Spacing.three }]}>
@@ -166,10 +188,51 @@ export default function StatsScreen() {
             {fi.stats.comparisonNote}
           </Text>
 
-          <Text style={[styles.subLabel, { color: theme.textSecondary }]}>{fi.stats.periodA}</Text>
-          <PeriodPicker value={periodA} onChange={setPeriodA} />
-          <Text style={[styles.subLabel, { color: theme.textSecondary }]}>{fi.stats.periodB}</Text>
-          <PeriodPicker value={periodB} onChange={setPeriodB} />
+          {/* Jaksot (Jakso A + Jakso B) avattavan osion takana. */}
+          <Collapsible title={fi.stats.periodsSection} summary={periodsSummary}>
+            <Text style={[styles.subLabel, { color: theme.textSecondary }]}>{fi.stats.periodA}</Text>
+            <PeriodPicker value={periodA} onChange={setPeriodA} />
+            <Text style={[styles.subLabel, { color: theme.textSecondary }]}>{fi.stats.periodB}</Text>
+            <PeriodPicker value={periodB} onChange={setPeriodB} />
+          </Collapsible>
+
+          {/* Suodattimet (otetyyppi + jyrkkyys) omassa avattavassa osiossaan. */}
+          {hasHoldData || hasSteepData ? (
+            <Collapsible title={fi.stats.filtersSection} summary={filterSummary}>
+              {hasHoldData ? (
+                <>
+                  <Text style={[styles.subLabel, { color: theme.textSecondary }]}>
+                    {fi.stats.filterHoldType}
+                  </Text>
+                  <SegmentedControl<HoldType | 'all'>
+                    segments={[
+                      { value: 'all', label: fi.stats.filterAll },
+                      { value: 'crimpy', label: fi.holdType.crimpy },
+                      { value: 'slopy', label: fi.holdType.slopy },
+                    ]}
+                    value={holdFilter}
+                    onChange={setHoldFilter}
+                  />
+                </>
+              ) : null}
+              {hasSteepData ? (
+                <>
+                  <Text style={[styles.subLabel, { color: theme.textSecondary }]}>
+                    {fi.stats.filterSteepness}
+                  </Text>
+                  <SegmentedControl<Steepness | 'all'>
+                    segments={[
+                      { value: 'all', label: fi.stats.filterAll },
+                      { value: 'slab', label: fi.steepness.slab },
+                      { value: 'overhang', label: fi.steepness.overhang },
+                    ]}
+                    value={steepFilter}
+                    onChange={setSteepFilter}
+                  />
+                </>
+              ) : null}
+            </Collapsible>
+          ) : null}
 
           {!hasComparisonData ? (
             <Text style={[styles.muted, { color: theme.textSecondary }]}>
@@ -193,21 +256,11 @@ export default function StatsScreen() {
                 </View>
                 <View style={styles.workoutCell}>
                   <Text style={[styles.workoutLabel, { color: theme.textSecondary }]}>Δ</Text>
-                  <Text
-                    style={[
-                      styles.workoutValue,
-                      {
-                        color:
-                          workoutsB - workoutsA > 0
-                            ? '#2e9e5b'
-                            : workoutsB - workoutsA < 0
-                              ? '#d1495b'
-                              : theme.text,
-                      },
-                    ]}>
-                    {workoutsB - workoutsA > 0
-                      ? `+${workoutsB - workoutsA}`
-                      : workoutsB - workoutsA}
+                  <Text style={[styles.workoutValue, { color: workoutColor }]}>
+                    {workoutDelta > 0 ? `+${workoutDelta}` : workoutDelta}
+                  </Text>
+                  <Text style={[styles.workoutPct, { color: workoutColor }]}>
+                    {fmtPct(percentChange(workoutsA, workoutsB))}
                   </Text>
                 </View>
               </View>
@@ -243,6 +296,16 @@ export default function StatsScreen() {
               )}
             </>
           )}
+
+          {/* Grade pyramid — avattava, sivun pohjalla (oletuksena kiinni). */}
+          <Collapsible title={fi.stats.gradePyramid}>
+            <Text style={[styles.note, { color: theme.textSecondary }]}>{fi.stats.note}</Text>
+            {pyramidBars.length === 0 ? (
+              <Text style={[styles.muted, { color: theme.textSecondary }]}>{fi.stats.empty}</Text>
+            ) : (
+              <BarChart data={pyramidBars} orientation="horizontal" />
+            )}
+          </Collapsible>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -263,4 +326,5 @@ const styles = StyleSheet.create({
   workoutCell: { flex: 1, alignItems: 'center', gap: 2 },
   workoutLabel: { fontSize: 12 },
   workoutValue: { fontSize: 22, fontWeight: '800' },
+  workoutPct: { fontSize: 12, fontWeight: '700' },
 });

@@ -5,6 +5,7 @@ import {
   buildEfforts,
   compareTallies,
   countWorkouts,
+  percentChange,
   dayRange,
   filterByPeriod,
   hardestGrade,
@@ -191,6 +192,20 @@ describe('modifikaattorit', () => {
     expect(applyModifier([{ gradeValue: 'V5', count: 5 }], { gradeShift: 1, volumePct: 20 }, 'v')).toEqual([
       { gradeValue: 'V6', count: 6 },
     ]);
+  });
+});
+
+describe('percentChange', () => {
+  it('rounds the relative change a->b', () => {
+    expect(percentChange(4, 6)).toBe(50);
+    expect(percentChange(10, 8)).toBe(-20);
+    expect(percentChange(3, 3)).toBe(0);
+    expect(percentChange(3, 4)).toBe(33); // 33.33 -> 33
+  });
+
+  it('returns null when the baseline is zero', () => {
+    expect(percentChange(0, 5)).toBeNull();
+    expect(percentChange(0, 0)).toBeNull();
   });
 });
 
