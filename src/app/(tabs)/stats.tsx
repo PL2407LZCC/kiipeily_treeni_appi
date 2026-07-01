@@ -63,16 +63,6 @@ export default function StatsScreen() {
       })),
     ];
 
-    // Volyymi: sendit session päivämäärällä + lähetetyt projektit sentAt-päivällä.
-    const dated: DatedCount[] = [];
-    for (const s of sends) {
-      const date = sessionDate.get(s.sessionId);
-      if (date) dated.push({ date, count: s.count });
-    }
-    for (const p of sentProjects) {
-      if (p.sentAt) dated.push({ date: p.sentAt.slice(0, 10), count: 1 });
-    }
-
     // Vertailun efforts: sendit + irralliset yritykset + project-yritykset.
     const efforts: ClimbEffort[] = buildEfforts(
       {
@@ -82,6 +72,10 @@ export default function StatsScreen() {
       },
       sessionDate,
     );
+
+    // Volyymi: kaikki yritykset (sendit + irralliset yritykset + project-yritykset).
+    const dated: DatedCount[] = efforts.map((e) => ({ date: e.date, count: e.count }));
+
     const sessionDates = sessions.map((s) => ({ date: s.date }));
 
     return { climbs, dated, efforts, sessionDates };
@@ -140,6 +134,11 @@ export default function StatsScreen() {
   const attemptRows = compareTallies(
     tallyByGrade(effortsA, { metric: 'attempts', discipline, displaySystem }),
     tallyByGrade(effortsB, { metric: 'attempts', discipline, displaySystem }),
+    displaySystem,
+  );
+  const sendRows = compareTallies(
+    tallyByGrade(effortsA, { metric: 'sends', discipline, displaySystem }),
+    tallyByGrade(effortsB, { metric: 'sends', discipline, displaySystem }),
     displaySystem,
   );
 
@@ -265,35 +264,47 @@ export default function StatsScreen() {
                 </View>
               </View>
 
-              <Text style={[styles.metricTitle, { color: theme.text }]}>
-                {fi.stats.totalEfforts}
-              </Text>
-              {totalRows.length === 0 ? (
-                <Text style={[styles.muted, { color: theme.textSecondary }]}>
-                  {fi.stats.noComparisonData}
-                </Text>
-              ) : (
-                <ComparisonBarChart
-                  rows={totalRows}
-                  labelA={fi.stats.periodA}
-                  labelB={fi.stats.periodB}
-                />
-              )}
+              <Collapsible title={fi.stats.totalEfforts} defaultOpen>
+                {totalRows.length === 0 ? (
+                  <Text style={[styles.muted, { color: theme.textSecondary }]}>
+                    {fi.stats.noComparisonData}
+                  </Text>
+                ) : (
+                  <ComparisonBarChart
+                    rows={totalRows}
+                    labelA={fi.stats.periodA}
+                    labelB={fi.stats.periodB}
+                  />
+                )}
+              </Collapsible>
 
-              <Text style={[styles.metricTitle, { color: theme.text }]}>
-                {fi.stats.attemptsByGrade}
-              </Text>
-              {attemptRows.length === 0 ? (
-                <Text style={[styles.muted, { color: theme.textSecondary }]}>
-                  {fi.stats.noComparisonData}
-                </Text>
-              ) : (
-                <ComparisonBarChart
-                  rows={attemptRows}
-                  labelA={fi.stats.periodA}
-                  labelB={fi.stats.periodB}
-                />
-              )}
+              <Collapsible title={fi.stats.attemptsByGrade}>
+                {attemptRows.length === 0 ? (
+                  <Text style={[styles.muted, { color: theme.textSecondary }]}>
+                    {fi.stats.noComparisonData}
+                  </Text>
+                ) : (
+                  <ComparisonBarChart
+                    rows={attemptRows}
+                    labelA={fi.stats.periodA}
+                    labelB={fi.stats.periodB}
+                  />
+                )}
+              </Collapsible>
+
+              <Collapsible title={fi.stats.sendsByGrade}>
+                {sendRows.length === 0 ? (
+                  <Text style={[styles.muted, { color: theme.textSecondary }]}>
+                    {fi.stats.noComparisonData}
+                  </Text>
+                ) : (
+                  <ComparisonBarChart
+                    rows={sendRows}
+                    labelA={fi.stats.periodA}
+                    labelB={fi.stats.periodB}
+                  />
+                )}
+              </Collapsible>
             </>
           )}
 
