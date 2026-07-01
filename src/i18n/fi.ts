@@ -232,8 +232,9 @@ export const fi = {
     filterHoldType: 'Suodata: otetyyppi',
     filterSteepness: 'Suodata: jyrkkyys',
     workouts: 'Treenikerrat',
-    totalEfforts: 'Kaikki nousut (yritykset + sendit)',
+    totalEfforts: 'Kaikki yritykset',
     attemptsByGrade: 'Yritykset asteittain',
+    sendsByGrade: 'Sendit asteittain',
     noComparisonData: 'Ei dataa valituilla jaksoilla',
     periods: {
       thisWeek: 'Tämä viikko',

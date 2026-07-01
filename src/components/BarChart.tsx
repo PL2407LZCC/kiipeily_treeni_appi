@@ -24,16 +24,20 @@ export function BarChart({ data, orientation = 'horizontal' }: BarChartProps) {
       <View style={styles.vWrap}>
         {data.map((d, i) => (
           <View key={`${d.label}-${i}`} style={styles.vCol}>
-            <Text style={[styles.vValue, { color: theme.textSecondary }]}>{d.value}</Text>
-            <View
-              style={[
-                styles.vBar,
-                {
-                  height: `${(d.value / max) * 100}%`,
-                  backgroundColor: theme.text,
-                },
-              ]}
-            />
+            <Text style={[styles.vValue, { color: theme.textSecondary }]} numberOfLines={1}>
+              {d.value}
+            </Text>
+            <View style={styles.vBarArea}>
+              <View
+                style={[
+                  styles.vBar,
+                  {
+                    height: `${(d.value / max) * 100}%`,
+                    backgroundColor: theme.text,
+                  },
+                ]}
+              />
+            </View>
             <Text style={[styles.vLabel, { color: theme.textSecondary }]} numberOfLines={1}>
               {d.label}
             </Text>
@@ -77,8 +81,9 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     height: 180,
   },
-  vCol: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end', gap: 2 },
-  vValue: { fontSize: 11 },
+  vCol: { flex: 1, alignItems: 'center', height: '100%', gap: 2 },
+  vValue: { fontSize: 11, height: 14, textAlign: 'center' },
+  vBarArea: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'flex-end' },
   vBar: { width: '70%', borderRadius: 6, minHeight: 3 },
-  vLabel: { fontSize: 10 },
+  vLabel: { fontSize: 10, height: 14, textAlign: 'center' },
 });
