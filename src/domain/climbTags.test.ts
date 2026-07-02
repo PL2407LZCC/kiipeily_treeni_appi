@@ -1,4 +1,4 @@
-import { holdTypeFromX, steepnessFromDy } from './climbTags';
+import { holdTypeFromX, holdTypeFromXCentered, steepnessFromDy } from './climbTags';
 
 describe('climbTags helpers', () => {
   describe('holdTypeFromX', () => {
@@ -31,6 +31,31 @@ describe('climbTags helpers', () => {
     test('nolla- tai negatiivinen leveys = null', () => {
       expect(holdTypeFromX(50, 0)).toBeNull();
       expect(holdTypeFromX(50, -10)).toBeNull();
+    });
+  });
+
+  describe('holdTypeFromXCentered', () => {
+    // W=300, neutral=84 → keskitetty null-vyöhyke [108, 192]; vasen<108=slopy, oikea>192=crimpy.
+    const W = 300;
+    const N = 84;
+
+    test('keskitetty null-vyöhyke', () => {
+      expect(holdTypeFromXCentered(150, W, N)).toBeNull();
+      expect(holdTypeFromXCentered(108, W, N)).toBeNull();
+      expect(holdTypeFromXCentered(192, W, N)).toBeNull();
+    });
+
+    test('vyöhykkeen vasen puoli = slopy, oikea = crimpy', () => {
+      expect(holdTypeFromXCentered(0, W, N)).toBe('slopy');
+      expect(holdTypeFromXCentered(107, W, N)).toBe('slopy');
+      expect(holdTypeFromXCentered(193, W, N)).toBe('crimpy');
+      expect(holdTypeFromXCentered(300, W, N)).toBe('crimpy');
+    });
+
+    test('rajat leikataan ja nolla-leveys = null', () => {
+      expect(holdTypeFromXCentered(-50, W, N)).toBe('slopy');
+      expect(holdTypeFromXCentered(W + 50, W, N)).toBe('crimpy');
+      expect(holdTypeFromXCentered(50, 0, N)).toBeNull();
     });
   });
 

@@ -37,3 +37,20 @@ export function formatTimeFi(iso: string): string {
   const min = String(d.getMinutes()).padStart(2, '0');
   return `${h}:${min}`;
 }
+
+/**
+ * Muotoile kesto (sekunteina) muotoon "M:SS" tai "H:MM:SS" jos ≥ 1 h.
+ * Negatiiviset arvot leikataan nollaan. Käytetään ajastimen näyttöön.
+ */
+export function formatDurationMmSs(totalSec: number): string {
+  const s = Math.max(0, Math.floor(totalSec));
+  const secs = s % 60;
+  const mins = Math.floor(s / 60) % 60;
+  const hours = Math.floor(s / 3600);
+  const ss = String(secs).padStart(2, '0');
+  if (hours > 0) {
+    const mm = String(mins).padStart(2, '0');
+    return `${hours}:${mm}:${ss}`;
+  }
+  return `${mins}:${ss}`;
+}

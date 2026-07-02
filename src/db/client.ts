@@ -49,6 +49,13 @@ function runMigrations(): void {
   ensureColumn('sessions', 'theme', 'theme TEXT');
   ensureColumn('sessions', 'environment', 'environment TEXT');
   ensureColumn('sessions', 'plan', 'plan TEXT');
+  ensureColumn('app_settings', 'hidden_grades', "hidden_grades TEXT NOT NULL DEFAULT '{}'");
+  ensureColumn('app_settings', 'grade_columns', 'grade_columns INTEGER NOT NULL DEFAULT 4');
+  ensureColumn(
+    'app_settings',
+    'climb_time_subtract_sec',
+    'climb_time_subtract_sec INTEGER NOT NULL DEFAULT 0',
+  );
 }
 
 /** Kylvä oletusteemat vain jos lista on tyhjä (ei palauta käyttäjän poistamia). */

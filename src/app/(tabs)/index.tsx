@@ -5,6 +5,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -21,6 +22,7 @@ import { SegmentedControl } from '@/components/SegmentedControl';
 import { Stepper } from '@/components/Stepper';
 import { SupplementalModal } from '@/components/SupplementalModal';
 import { ThemePicker } from '@/components/ThemePicker';
+import { TrainingTimer } from '@/components/TrainingTimer';
 import { Spacing } from '@/constants/theme';
 import { AttemptLogs, Attempts, Projects, Sends, Sessions, Themes } from '@/db/repositories';
 import { daysAgoIso, formatDateFi, formatTimeFi } from '@/domain/dates';
@@ -41,6 +43,8 @@ import { successFeedback, tapFeedback } from '@/lib/haptics';
 import { useActiveSession } from '@/state/activeSession';
 import { bumpData } from '@/state/dataVersion';
 import { useSettings } from '@/state/settings';
+import { useTimer } from '@/state/timer';
+import type { TimerMode } from '@/state/timerLogic';
 
 /** Ulottuvuus-suffiksi suunnitelman tavoitteelle/edistymisriville, esim. " · crimpy". */
 function planDimSuffix(
@@ -74,6 +78,8 @@ export default function HomeScreen() {
   const [startTheme, setStartTheme] = useState<string | null>(null);
   const [startEnvironment, setStartEnvironment] = useState<SessionEnvironment | 'none'>('none');
   const [draftPlan, setDraftPlan] = useState<SessionPlan | null>(null);
+  const [timerEnabled, setTimerEnabled] = useState(false);
+  const [timerMode, setTimerMode] = useState<TimerMode>('simple');
   const [planModal, setPlanModal] = useState(false);
   const [projectModal, setProjectModal] = useState(false);
   const [supplementalModal, setSupplementalModal] = useState(false);
@@ -99,10 +105,13 @@ export default function HomeScreen() {
       environment: startEnvironment === 'none' ? null : startEnvironment,
     });
     if (draftPlan) Sessions.setSessionPlan(id, draftPlan);
+    if (timerEnabled) useTimer.getState().start(timerMode);
     setStartLocation('');
     setStartTheme(null);
     setStartEnvironment('none');
     setDraftPlan(null);
+    setTimerEnabled(false);
+    setTimerMode('simple');
     bumpData();
   };
 
@@ -116,6 +125,7 @@ export default function HomeScreen() {
         onPress: () => {
           Sessions.endSession(sessionId);
           active.resetLogging();
+          useTimer.getState().clear();
           bumpData();
         },
       },
@@ -167,6 +177,28 @@ export default function HomeScreen() {
               setDraftPlan(null);
             }}
           />
+
+          <View style={styles.timerToggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginTop: 0 }]}>
+                {fi.timer.enable}
+              </Text>
+              <Text style={[styles.timerHint, { color: theme.textSecondary }]}>
+                {fi.timer.enableHint}
+              </Text>
+            </View>
+            <Switch value={timerEnabled} onValueChange={setTimerEnabled} />
+          </View>
+          {timerEnabled ? (
+            <SegmentedControl<TimerMode>
+              segments={[
+                { value: 'simple', label: fi.timer.modeSimple },
+                { value: 'complex', label: fi.timer.modeComplex },
+              ]}
+              value={timerMode}
+              onChange={setTimerMode}
+            />
+          ) : null}
 
           {planReady ? (
             <>
@@ -415,6 +447,13 @@ function SendMode({ sessionId }: { sessionId: number }) {
     : undefined;
   const exactComplete = planExact && allowedGrades != null && allowedGrades.length === 0;
 
+  // Piilotetut asteet (asetus), mutta suunnitelman asteet ohittavat piilotuksen: jos aste on
+  // aktiivisessa suunnitelmassa, se näkyy astevalikossa vaikka olisi globaalisti piilotettu.
+  const plannedGrades = planActive ? new Set(progressRows.map((r) => r.grade)) : null;
+  const hiddenGrades = (settings.hiddenGrades[system] ?? []).filter(
+    (g) => !plannedGrades?.has(g),
+  );
+
   // Efektiiviset seuranta-asetukset: globaali asetus TAI suunnitelman ulottuvuus pakottaa
   // ulottuvuuden kaappauksen tälle sessiolle, vaikka globaali asetus olisi pois.
   const effTrackHoldType = settings.trackHoldType || !!planDims?.holdType;
@@ -445,6 +484,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
     });
     active.setLastSendId(id);
     if (active.flash) active.toggleFlash();
+    useTimer.getState().onLog(settings.climbTimeSubtractSec);
     tapFeedback();
     bumpData();
   };
@@ -460,6 +500,7 @@ function SendMode({ sessionId }: { sessionId: number }) {
       steepness,
     });
     active.setLastAttemptId(id);
+    useTimer.getState().onLog(settings.climbTimeSubtractSec);
     successFeedback(); // erottuva palaute: pitkä painallus rekisteröityi yritykseksi
     bumpData();
   };
@@ -648,9 +689,13 @@ function SendMode({ sessionId }: { sessionId: number }) {
             onLongPress={logAttempt}
             longPressDelayMs={ATTEMPT_LONG_PRESS_MS}
             allowedGrades={allowedGrades}
+            hiddenGrades={hiddenGrades}
+            columns={settings.gradeColumns}
           />
         </>
       )}
+
+      <TrainingTimer />
 
       <Collapsible title={fi.home.loggedSends} summary={String(sends.length)}>
         {active.lastSendId != null ? (
@@ -742,6 +787,7 @@ function ProjectMode({
 }) {
   const theme = useTheme();
   const active = useActiveSession();
+  const settings = useSettings();
 
   const projects = useDbQuery(() => Projects.listActiveProjects(), []);
   const selectedId = active.selectedProjectId;
@@ -774,6 +820,7 @@ function ProjectMode({
   const doAddAttempt = (by: number) => {
     if (selectedId == null) return;
     Attempts.addAttempts(selectedId, sessionId, by);
+    if (by > 0) useTimer.getState().onLog(settings.climbTimeSubtractSec);
     tapFeedback();
     bumpData();
   };
@@ -819,6 +866,7 @@ function ProjectMode({
   const markSent = () => {
     if (selectedId == null) return;
     Attempts.markSentInSession(selectedId, sessionId);
+    useTimer.getState().onLog(settings.climbTimeSubtractSec);
     successFeedback();
     active.setSelectedProject(null);
     bumpData();
@@ -904,6 +952,7 @@ function ProjectMode({
             />
             <PrimaryButton label={fi.home.markSent} onPress={markSent} flex />
           </View>
+          <TrainingTimer />
         </View>
       ) : null}
     </View>
@@ -918,6 +967,13 @@ const styles = StyleSheet.create({
   muted: { fontSize: 14 },
   input: { borderRadius: 10, padding: Spacing.three, fontSize: 16 },
   fieldLabel: { fontSize: 13, fontWeight: '600', marginTop: Spacing.two },
+  timerToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+  },
+  timerHint: { fontSize: 12, marginTop: 2 },
   sessionHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   planCard: { borderRadius: 12, padding: Spacing.three, gap: Spacing.two },
   planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },

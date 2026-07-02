@@ -21,6 +21,26 @@ export function holdTypeFromX(x: number, rowWidth: number): HoldType | null {
 }
 
 /**
+ * Otetyyppi vaakasuoran x:n perusteella kun keskimmäinen "ei määritelty" -nappi on
+ * kiinteän levyinen (pyöreä) ja sivunapit (slopy/crimpy) täyttävät loput. Keskitetty
+ * null-vyöhyke leveydeltään `neutralWidth`; sen vasen puoli = slopy, oikea = crimpy.
+ * Vastaa yhdistetyn valitsimen visuaalista sijoittelua. rowWidth <= 0 → null.
+ */
+export function holdTypeFromXCentered(
+  x: number,
+  rowWidth: number,
+  neutralWidth: number,
+): HoldType | null {
+  if (rowWidth <= 0) return null;
+  const clamped = Math.min(Math.max(x, 0), rowWidth);
+  const half = neutralWidth / 2;
+  const center = rowWidth / 2;
+  if (clamped < center - half) return 'slopy';
+  if (clamped > center + half) return 'crimpy';
+  return null; // keskellä oleva pyöreä nappi = ei määritelty
+}
+
+/**
  * Jyrkkyys pystysuoran liu'un (translationY) perusteella.
  * Ylös (negatiivinen dy) yli kynnyksen = 'slab', alas (positiivinen) = 'overhang',
  * muuten null (ei valittu). Pelkkä napautus (dy ~ 0) → null.
