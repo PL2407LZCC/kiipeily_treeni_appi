@@ -13,7 +13,7 @@ import { Dimensions, Modal, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Spacing } from '@/constants/theme';
-import { holdTypeFromX, steepnessFromDy } from '@/domain/climbTags';
+import { holdTypeFromXCentered, steepnessFromDy } from '@/domain/climbTags';
 import type { HoldType, Steepness } from '@/domain/types';
 import { useTheme } from '@/hooks/use-theme';
 import { fi } from '@/i18n/fi';
@@ -21,6 +21,9 @@ import { tapFeedback } from '@/lib/haptics';
 
 /** Pystyliu'un kynnys (px), jonka yli jyrkkyys valitaan. */
 const STEEPNESS_THRESHOLD = 40;
+
+/** Pyöreän "Ei määritelty" -napin halkaisija (px). Käytetään sekä tyylissä että ele-vyöhykkeissä. */
+const NEUTRAL_CIRCLE = 84;
 
 /**
  * Ele-alueen (kortin sisällön) arvioitu leveys ennen kuin onLayout ehtii mitata sen.
@@ -106,14 +109,14 @@ function CombinedPicker({
     .minDistance(0)
     .runOnJS(true)
     .onBegin((e) => {
-      setHold(holdTypeFromX(e.x, rowWidth.current));
+      setHold(holdTypeFromXCentered(e.x, rowWidth.current, NEUTRAL_CIRCLE));
       setSteep(null);
     })
     .onUpdate((e) => {
       setSteep(steepnessFromDy(e.translationY, STEEPNESS_THRESHOLD));
     })
     .onEnd((e) => {
-      const h = holdTypeFromX(e.x, rowWidth.current);
+      const h = holdTypeFromXCentered(e.x, rowWidth.current, NEUTRAL_CIRCLE);
       const s = steepnessFromDy(e.translationY, STEEPNESS_THRESHOLD);
       onCommit(h, s);
     });
@@ -147,8 +150,7 @@ function CombinedPicker({
           </View>
           <View
             style={[
-              styles.btn,
-              styles.btnNeutral,
+              styles.btnCircle,
               { backgroundColor: hold === null ? theme.backgroundSelected : theme.backgroundElement },
             ]}>
             <Text style={[styles.btnText, { color: theme.textSecondary }]}>{fi.holdType.undefined}</Text>
@@ -199,8 +201,7 @@ function HoldTypeButtons({
           onPress={() => onChoose(null)}
           disabled={!open(null)}
           style={[
-            styles.btn,
-            styles.btnNeutral,
+            styles.btnCircle,
             { backgroundColor: theme.backgroundElement, opacity: open(null) ? 1 : 0.3 },
           ]}>
           <Text style={[styles.btnText, { color: theme.textSecondary }]}>{fi.holdType.undefined}</Text>
@@ -241,8 +242,7 @@ function SteepnessButtons({
           onPress={() => onChoose(null)}
           disabled={!open(null)}
           style={[
-            styles.btn,
-            styles.btnNeutral,
+            styles.btnCircle,
             { backgroundColor: theme.backgroundElement, opacity: open(null) ? 1 : 0.3 },
           ]}>
           <Text style={[styles.btnText, { color: theme.textSecondary }]}>{fi.steepness.undefined}</Text>
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   zoneText: { fontSize: 16, fontWeight: '800' },
-  row: { flexDirection: 'row', gap: Spacing.two },
+  row: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center' },
   btn: {
     flex: 1,
     height: 104,
@@ -293,6 +293,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
-  btnNeutral: { flexBasis: '28%', flexGrow: 0 },
+  // Pyöreä "Ei määritelty" -nappi: reunatonta muotoa vaikeampi osua vahingossa kulmista;
+  // sivunapit (slopy/crimpy, flex:1) levenevät täyttämään vapautuneen tilan.
+  btnCircle: {
+    width: NEUTRAL_CIRCLE,
+    height: NEUTRAL_CIRCLE,
+    borderRadius: NEUTRAL_CIRCLE / 2,
+    flexGrow: 0,
+    flexBasis: NEUTRAL_CIRCLE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
   btnText: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
 });

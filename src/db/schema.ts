@@ -6,11 +6,13 @@
  * samassa sessiossa tai kerätä yrityksiä useamman session yli.
  */
 
+import { sql } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 import type {
   Discipline,
   GradeSystem,
+  HiddenGrades,
   HoldType,
   ProjectStatus,
   SessionEnvironment,
@@ -162,6 +164,12 @@ export const appSettings = sqliteTable('app_settings', {
   trackSteepness: integer('track_steepness', { mode: 'boolean' })
     .notNull()
     .default(false),
+  hiddenGrades: text('hidden_grades', { mode: 'json' })
+    .$type<HiddenGrades>()
+    .notNull()
+    .default(sql`'{}'`),
+  gradeColumns: integer('grade_columns').notNull().default(4),
+  climbTimeSubtractSec: integer('climb_time_subtract_sec').notNull().default(0),
 });
 
 /** DDL kaikkien taulujen luomiseen sovelluksen käynnistyessä (idempotentti). */
@@ -260,7 +268,10 @@ export const CREATE_TABLES_SQL = `
     boulder_default_system TEXT NOT NULL DEFAULT 'font',
     show_secondary_grade INTEGER NOT NULL DEFAULT 1,
     track_hold_type INTEGER NOT NULL DEFAULT 0,
-    track_steepness INTEGER NOT NULL DEFAULT 0
+    track_steepness INTEGER NOT NULL DEFAULT 0,
+    hidden_grades TEXT NOT NULL DEFAULT '{}',
+    grade_columns INTEGER NOT NULL DEFAULT 4,
+    climb_time_subtract_sec INTEGER NOT NULL DEFAULT 0
   );
   INSERT OR IGNORE INTO app_settings (id, boulder_default_system, show_secondary_grade)
     VALUES (1, 'font', 1);

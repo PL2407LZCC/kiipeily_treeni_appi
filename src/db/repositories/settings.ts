@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 
-import type { GradeSystem } from '@/domain/types';
+import type { GradeSystem, HiddenGrades } from '@/domain/types';
 import { db } from '../client';
 import { appSettings } from '../schema';
 
@@ -9,6 +9,9 @@ export interface AppSettings {
   showSecondaryGrade: boolean;
   trackHoldType: boolean;
   trackSteepness: boolean;
+  hiddenGrades: HiddenGrades; // piilotetut asteet per asteikko (Treeni-astevalikko)
+  gradeColumns: number; // astenappien määrä rivillä Treeni-näkymässä (3 tai 4)
+  climbTimeSubtractSec: number; // vähennys mitatusta nousuajasta (complex-ajastin)
 }
 
 const DEFAULTS: AppSettings = {
@@ -16,6 +19,9 @@ const DEFAULTS: AppSettings = {
   showSecondaryGrade: true,
   trackHoldType: false,
   trackSteepness: false,
+  hiddenGrades: {},
+  gradeColumns: 4,
+  climbTimeSubtractSec: 0,
 };
 
 export function getSettings(): AppSettings {
@@ -26,6 +32,9 @@ export function getSettings(): AppSettings {
     showSecondaryGrade: row.showSecondaryGrade,
     trackHoldType: row.trackHoldType,
     trackSteepness: row.trackSteepness,
+    hiddenGrades: (row.hiddenGrades as HiddenGrades) ?? {},
+    gradeColumns: row.gradeColumns,
+    climbTimeSubtractSec: row.climbTimeSubtractSec,
   };
 }
 

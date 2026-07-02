@@ -7,6 +7,12 @@ export type Discipline = 'boulder' | 'sport';
 /** Asteikkojärjestelmät: Font ja V boulderointiin, French sport-kiipeilyyn. */
 export type GradeSystem = 'font' | 'v' | 'french';
 
+/**
+ * Käyttäjän piilottamat asteet per asteikko (asetus). Piilotetut asteet eivät näy
+ * Treeni-näkymän astevalikossa. Puuttuva avain = ei piilotettuja kyseisessä asteikossa.
+ */
+export type HiddenGrades = Partial<Record<GradeSystem, string[]>>;
+
 export type ProjectStatus = 'active' | 'sent' | 'abandoned' | 'archived';
 
 export type SupplementalKind = 'strength' | 'endurance' | 'other';
